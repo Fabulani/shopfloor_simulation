@@ -59,10 +59,6 @@ class MainRun(object):
         self.Main()
 
     def Main(self):
-        #Put all variables up here
-        global A1_data, M1_data, M2_data, S1_data
-        stopped = False
-
         # Threading: create event for syncing thread shut down.
         run_event = threading.Event()
         run_event.set()
