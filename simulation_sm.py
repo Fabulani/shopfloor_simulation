@@ -66,7 +66,7 @@ class Idle(State):
 class OP10(State):
     def run(self):
         print("[STATE] OP10 - Sub Assy of a cross member")
-        J1.begin_step("OP10")
+        J1.begin_step(Station1.op)
         J1.status = 'underway'
         S1.status = 'busy'
         S2.status = 'busy'
@@ -75,7 +75,7 @@ class OP10(State):
         S2.update_tcp()
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP10")
+        J1.complete_step(Station1.op)
         S1.reset()
         S2.reset()
 
@@ -86,7 +86,7 @@ class OP10(State):
 class OP20(State):
     def run(self):
         print("[STATE] OP20 - Assy of various members")
-        J1.begin_step("OP20")
+        J1.begin_step(Station2.op)
         S4.status = 'busy'
         M1.status = 'busy'
         M2.status = 'busy'        
@@ -95,7 +95,7 @@ class OP20(State):
         M2.update_tcp()
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP20")
+        J1.complete_step(Station2.op)
         S4.reset()
 
     def next(self):
@@ -105,14 +105,14 @@ class OP20(State):
 class OP30(State):
     def run(self):
         print("[STATE] OP30 - Assy of various members")
-        J1.begin_step("OP30")
+        J1.begin_step(Station3.op)
         S3.status = 'busy'
         S3.update_tcp()
         M1.update_tcp()
         M2.update_tcp()
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP30")
+        J1.complete_step(Station3.op)
         S3.reset()
 
     def next(self):
@@ -122,7 +122,7 @@ class OP30(State):
 class OP40(State):
     def run(self):
         print("[STATE] OP40 - Assy of various members")
-        J1.begin_step("OP40")
+        J1.begin_step(Station4.op)
         S5.status = 'busy'
         S6.status = 'busy'
         S5.update_tcp()
@@ -131,7 +131,7 @@ class OP40(State):
         M2.update_tcp()
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP40")
+        J1.complete_step(Station4.op)
         S5.reset()
         S6.reset()
         M1.reset()
@@ -144,10 +144,10 @@ class OP40(State):
 class OP50(State):
     def run(self):
         print("[STATE] OP50 - Measurement process using portable metrology for frame geometry check")
-        J1.begin_step("OP50")
+        J1.begin_step(Station5.op)
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP50")
+        J1.complete_step(Station5.op)
 
     def next(self):
         return ShopFloor.transition_to_op60
@@ -156,10 +156,10 @@ class OP50(State):
 class OP60(State):
     def run(self):
         print("[STATE] OP60 - Manual disassembly to recirculate demo parts")
-        J1.begin_step("OP60")
+        J1.begin_step(Station6.op)
 
         sleep(STATE_SLEEP)
-        J1.complete_step("OP60")
+        J1.complete_step(Station6.op)
         J1.status = 'completed'
 
     def next(self):
@@ -405,11 +405,11 @@ class MobileRobot(Robot):
 
 class Job():
     '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
-    def __init__(self, mqtt_topic):
+    def __init__(self, mqtt_topic, pending_steps:list=["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
         self.status = "pending"
-        self.pending = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]
+        self.pending = pending_steps
         self.completed = []
-        self.current_step = ""
+        self.current_step = "-"
         self.current_progress = 0  # Job progress in percentage
         # MQTT
         self.mqtt_topic = MQTT_TOPIC_INIT + mqtt_topic
@@ -421,7 +421,7 @@ class Job():
         self.current_progress = round(len(self.completed)/(len(self.completed) + len(self.pending))*100, 2)
 
     def begin_step(self, step_name:str):
-        '''Update the current step with the specified step name. If the step is not in the pending list, raise an Exception'''
+        '''Update the current step with the specified step name. If the step is not in the pending list, or it's not a "-" step (for transitions), raise an Exception'''
         if step_name in self.pending:
             self.current_step = step_name
         else:
@@ -431,13 +431,14 @@ class Job():
         '''Remove the completed step from the pending list and append it to the completed list'''
         self.pending.remove(step_name)
         self.completed.append(step_name)
+        self.current_step = "-"
         self.update_progress()
 
     def reset(self):
         self.status = "pending"
         self.pending = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]
         self.completed = []
-        self.current_step = ""
+        self.current_step = "-"
         self.current_progress = 0
 
     def mqtt_update_payload(self):
@@ -505,7 +506,7 @@ if __name__ == "__main__":
     A1 = AGV(Station1.pos, 'idle', "agv", "A1", "AGV-001")
 
     # Instantiate Jobs
-    J1 = Job("Job-001")
+    J1 = Job("Job-001", pending_steps=[Station1.op, Station2.op, Station3.op, Station4.op, Station5.op, Station6.op])
 
     # List of entities that need to be reset
     entities = [S1, S2, S3, S4, S5, S6, M1, M2, A1, J1]
