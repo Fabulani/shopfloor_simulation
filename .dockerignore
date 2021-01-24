@@ -1,0 +1,7 @@
+diagrams
+img
+venv
+.dockerignore
+Dockerfile
+simulation_graphics.py
+__pycache__
