@@ -1,9 +1,11 @@
 ### [REQUIREMENTS] ###
 - Python 3
+- (optional) Docker
 
 
 ### [EXECUTION] ###
-(Windows instructions)
+
+# (Python only - Windows instructions)
 1. Open the Windows cmd prompt in this folder.
 2. Type "python -m pip install -r requirements.txt" (recommended to do this inside a Python virtual environment).
 3. After installing the required modules, execute the script with:
@@ -15,6 +17,18 @@ The sm_simulation script will continually publish data to the topics inside "fre
 The draw_simulation script will open a window and continually draw the simulation using data from MQTT. To stop the script, you can either use a keyboard interrupt or close the window.
 
 * Note: the MQTT host server is public, so anyone can publish/read. It's being used for now to handle the dummy data, but we'll setup our own internal servers once the shop floor is properly set up.
+
+
+# (Optional - Running the State Machine inside a Docker Container)
+1. In this folder, run the following commands (without the $, and with the "."):
+	$ docker build -t simulation_sm .
+	$ docker run -d --name simulation_sm simulation_sm 
+2. To stop the container, run:
+	$ docker stop simulation_sm
+3. To run the container again, use:
+	$ docker start simulation_sm
+* "docker build" might take a few minutes.
+* The "-d" flag means "detached". If you want the container to use your terminal, just remove this flag (the script prints the current state to the terminal).
 
 
 ### [MQTT APP] ###
