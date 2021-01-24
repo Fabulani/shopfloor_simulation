@@ -10,7 +10,7 @@ from math import sqrt
 from mqtt_utils import MqttGeneric
 
 # MQTT Setup
-MQTT_HOST = "mqtt.fluux.io"
+MQTT_HOST = "mqtt.fluux.io"  # Alternatives: "mqtt.eclipse.org", "mqtt.fluux.io"
 MQTT_PORT = 1883
 MQTT_SLEEP_INTERVAL = 0.1             # Amount of time between MQTT's run_event check
 MQTT_TOPIC_INIT = "freeaim/echo/"   # Initial part of the MQTT topic.
