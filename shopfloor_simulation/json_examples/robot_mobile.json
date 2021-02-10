@@ -1,0 +1,12 @@
+{
+    "name": "Mobile-Robot-001",
+    "type": "mobile",
+    "status": "busy",
+    "pos_x": 30.0,
+    "pos_y": 45.5,
+    "pos_z": 0,
+    "angle": 0.56,
+    "tool_center_point_x": 10,
+    "tool_center_point_y": 250,
+    "tool_center_point_z": 30
+}

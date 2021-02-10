@@ -1,0 +1,8 @@
+{
+    "name": "J1",
+    "status": "completed",
+    "current_progress": 33.3,
+    "current_step": "OP40",
+    "pending": ["OP40", "OP50", "OP60"],
+    "completed": ["OP10", "OP20", "OP30"]
+}

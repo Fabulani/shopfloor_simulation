@@ -1,7 +1,7 @@
 diagrams
-img
-venv
+**/venv
 .dockerignore
 Dockerfile
-simulation_graphics.py
-__pycache__
+**/__pycache__
+graphics
+json_examples

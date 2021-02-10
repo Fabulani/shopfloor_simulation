@@ -1,0 +1,12 @@
+{
+    "name": "Static-Robot-001",
+    "type": "static",
+    "status": "busy",
+    "pos_x": 20.0,
+    "pos_y": 35.5,
+    "pos_z": 0,
+    "angle": 1.56,
+    "tool_center_point_x": 0,
+    "tool_center_point_y": 0,
+    "tool_center_point_z": 0
+}
