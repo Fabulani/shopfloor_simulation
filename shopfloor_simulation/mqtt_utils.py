@@ -1,5 +1,6 @@
 import paho.mqtt.client as mqtt
 from time import sleep, perf_counter
+import json
 
 
 ''' MQTT Connection setup. '''
@@ -10,7 +11,7 @@ MQTT_USERNAME = ""
 MQTT_PASSWORD = ""
 
 
-class MqttGeneric():
+class MqttGeneric:
     '''Generic class for MQTT protocol communication'''
 
     def __init__(self, host=MQTT_HOST, port=MQTT_PORT, username=MQTT_USERNAME, password=MQTT_PASSWORD,
@@ -67,3 +68,42 @@ class MqttGeneric():
     def on_publish(client, userdata, mid):
         '''The callback for when a message is published.'''
         print("[" + self.name + "] ({}s) (msgs={})".format(perf_counter(), mid))
+
+
+class ShopfloorPublisher(MqttGeneric):
+    ''' MQTT Publisher that handles the Shopfloor's entities payloads. '''
+
+    def __init__(self, host=MQTT_HOST, port=MQTT_PORT, username=MQTT_USERNAME, password=MQTT_PASSWORD, run_event_check_sleep=0.1, publishing_entities=[], name='MQTT'):
+        super().__init__(host=host, port=port, username=username, password=password,
+                         run_event_check_sleep=run_event_check_sleep, subscribed_topics=[], name=name)
+        self.publishing_entities = publishing_entities
+
+    def mqtt_loop(self, run_event):
+        '''(OVERRIDDEN) Starts the MQTT communication. Updates and sends payloads every loop.'''
+        # TODO: update and send payloads only when necessary
+        self.client.loop_start()
+        while run_event.is_set():
+            for entity in self.publishing_entities:
+                entity.mqtt_update_payload()
+                entity.mqtt_send_payload(self.client)
+                sleep(0.01)
+            sleep(self.run_event_check_sleep)
+        self.client.loop_stop()
+        print("[" + self.name + "] Shutting down.")
+
+    @staticmethod
+    def on_publish(client, userdata, mid):
+        '''(OVERRIDDEN) The callback for when a message is published. Do nothing.'''
+        pass
+
+
+class ShopfloorSubscriber(MqttGeneric):
+    ''' MQTT Subscriber that influences the simulation according to received messages. '''
+
+    def on_message(self, client, userdata, msg):
+        ''' (OVERRIDDEN) The callback for when a PUBLISH message is received from the server. '''
+        try:
+            content = json.loads(msg.payload.decode("utf-8"))
+            print("[" + self.name + "] Received: " + str(content))
+        except:
+            print("[" + self.name + "] Unrecognized: " + str(msg.payload))
