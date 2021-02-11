@@ -40,6 +40,7 @@ The ```simulation_graphics.py``` script will open a window and continually draw 
 ## (Optional) Docker
 1. In this folder, run the following commands (don't forget the ```.```):
 	```docker build -t simulation_sm .```
+	
 	```docker run -d --name simulation_sm simulation_sm```
 2. To stop the container, run:
 	```docker stop simulation_sm```
