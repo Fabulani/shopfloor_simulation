@@ -1,9 +1,6 @@
 {
-    "name": "AGV-001",
-    "type": "agv",
-    "status": "idle",
-    "pos_x": 10.0,
-    "pos_y": 25.5,
-    "pos_z": 0,
-    "angle": 1.16
+    "header.json": {},
+    "robot.json": {},
+    "battery_status": 1.12,
+    "Header current_station": {}
 }

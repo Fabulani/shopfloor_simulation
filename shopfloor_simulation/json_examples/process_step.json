@@ -1,6 +1,7 @@
 {
     "header.json": {},
     "status": "CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN",
-    "process_steps": [],
-    "progress": 2.5
+    "operations": [],
+    "progress": 2.5,
+    "Station station": {}
 }

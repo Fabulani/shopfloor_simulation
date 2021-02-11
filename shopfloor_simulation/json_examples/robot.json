@@ -1,0 +1,8 @@
+{
+    "type": "agv, static, or mobile",
+    "status": "status model from git. Differs for each robot.",
+    "pose": {
+        "position": [0, 0, 0],
+        "orientation": [0, 0, 0, 0]
+    }
+}

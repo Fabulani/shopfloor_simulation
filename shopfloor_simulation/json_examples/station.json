@@ -1,4 +1,4 @@
 {
-    "pos": [30, 50, 70],
-    "op": "OP10"
+    "header.json": {},
+    "status": "SETUP, OPERABLE, UNKNOWN, ERROR"
 }
