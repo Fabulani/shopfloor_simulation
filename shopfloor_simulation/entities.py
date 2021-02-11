@@ -10,52 +10,63 @@ MOVEMENT_SLEEP = 0.1                # Amount of time to wait between steps.
 MOVEMENT_STEP = 5                   # Amount to move in an axis (x or y).
 
 
+class Header:
+    ''' The header is the same for all entities, and it contains basic identification information about them. '''
+
+    def __init__(self, _id, name, namespace, description):
+        self._id = _id
+        self.name = name
+        self.namespace = namespace
+        self.description = description
+
+
 class Station:
     '''The Stations are where the Robots work on the Products'''
 
-    def __init__(self, position, operation_type):
-        self.pos = position
+    def __init__(self, _id, name, namespace, description, position, operation_type):
+        self.header = Header(_id, name, namespace, description)
+        self.status = "SETUP"  # SETUP, OPERABLE, UNKNOWN, ERROR
+        self.pos = position,
         self.op = operation_type
 
 
 class Robot:
-    '''The Robots work on the products and can be either static, mobile or agvs'''
+    '''The Robots work on the products and can be either stationary, mobile or agvs'''
 
-    def __init__(self, initial_position: tuple = (0, 0, 0), initial_status: str = "idle", robot_type: str = "?", name: str = "Robot", mqtt_topic: str = "Robot-Topic-001"):
-        self.initial_pos = initial_position
-        self.pos = initial_position
-        self.angle = 0
-        self.status = initial_status
-        self.type = robot_type
-        self.name = name
-        self.tcp = (0, 0, 0)  # Tool center point
+    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station: Header = None):
+        self.header = Header(_id, name, namespace, description)
+        self.type = _type  # agv, stationary, or mobile
+        self.status = "IDLE"  # TODO: write other possible status here
+        self.initial_pose = {
+            "position": initial_position,
+            "orientation": initial_orientation
+        }
+        self.pose = self.initial_pose
+        self.current_station = None
+
         # MQTT
-        self.mqtt_topic = TOPIC_ROOT + mqtt_topic
+        self.mqtt_topic = TOPIC_ROOT + \
+            self.header.namespace + "/" + self.header._id
         self.mqtt_payload = {}
         self.prev_mqtt_payload = {}
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
-        if self.type != "static":
-            self.move_robot(self.initial_pos)
-        self.status = 'idle'
-        self.tcp = (0, 0, 0)
+        self.move_robot(self.initial_pose["position"])
+        self.status = 'IDLE'
         return
 
-    def update_tcp(self):
-        '''Update the Robot's Tool Center Point (tcp) with random numbers'''
-        self.tcp = (randint(0, 100), randint(0, 100), randint(0, 100))
-        return
-
-    def move_robot(self, target: tuple):
+    def move_robot(self, target):
         '''
         Change position incrementally in a linear movement interpolated by the current position and the target position.
 
         `target`: xyz coordinates for the Robot's destination.
         '''
-        self.status = "moving"
+        self.status = "MOVE"
 
-        current_pos = {"x": self.pos[0], "y": self.pos[1], "z": self.pos[2]}
+        current_pos = {"x": self.pose["position"][0],
+                       "y": self.pose["position"][1],
+                       "z": self.pose["position"][2]}
         target_pos = {"x": target[0], "y": target[1], "z": target[2]}
 
         # Distances (dx and dy are the sides of the triangle in a 2D plane)
@@ -63,12 +74,14 @@ class Robot:
         dy = target_pos["y"] - current_pos["y"]
         dz = target_pos["z"] - current_pos["z"]
 
-        # Angle between dx and hypotenuse (2D plane, rad)
-        self.angle = float(atan2(dy, dx))
-
         # Pathing: change current_pos by a value of MOVEMENT_STEP until it equals target_pos
         target_reached = False
         while not target_reached:
+            # Check if the target destination has been reached
+            if (current_pos["x"] == target_pos["x"] and current_pos["y"] == target_pos["y"] and current_pos["z"] == target_pos["z"]):
+                target_reached = True
+                break
+
             # Calculate steps for x axis
             dx = target_pos["x"] - current_pos["x"]
             if (dx > 0 and abs(dx) > MOVEMENT_STEP):
@@ -100,14 +113,12 @@ class Robot:
                 current_pos["z"] = target_pos["z"]
 
             # Update the Robot's positions
-            self.pos = (current_pos["x"], current_pos["y"], current_pos["z"])
-
-            # Check if the target destination has been reached
-            if (current_pos["x"] == target_pos["x"] and current_pos["y"] == target_pos["y"] and current_pos["z"] == target_pos["z"]):
-                target_reached = True
+            self.pose["position"] = [current_pos["x"],
+                                     current_pos["y"],
+                                     current_pos["z"]]
 
             sleep(MOVEMENT_SLEEP)
-        self.status = "idle"
+        self.status = "IDLE"
         return
 
     def mqtt_update_payload(self):
@@ -127,63 +138,39 @@ class Robot:
 class AGV(Robot):
     '''AGVs are responsible for moving the Products around the Shopfloor'''
 
-    def update_tcp(self):
-        raise NotImplementedError(
-            "AGVs don't have robotic arms, as such it can't update its tool center point value.")
+    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
+        super().__init__(_id, name, namespace, description, _type, initial_position=initial_position,
+                         initial_orientation=initial_orientation, current_station=current_station)
+        self.battery_status = 1.0  # Battery percentage = battery_status*100
 
     def mqtt_update_payload(self):
         self.mqtt_payload = {
-            "name": self.name,
-            "type": self.type,
-            "status": self.status,
-            "pos_x": self.pos[0],
-            "pos_y": self.pos[1],
-            "pos_z": self.pos[2],
-            "angle": self.angle,
+            "pose": self.pose
         }
 
 
-class StaticRobot(Robot):
-    '''Static Robots have a robotic arm, but can't move around the Shopfloor'''
-
-    def move_robot(self):
-        raise NotImplementedError(
-            "Static Robots can't move around the shop floor.")
+class StationaryRobot(Robot):
+    '''Stationary Robots have a robotic arm, but can't move around the Shopfloor'''
 
     def mqtt_update_payload(self):
         self.mqtt_payload = {
-            "name": self.name,
-            "type": self.type,
-            "status": self.status,
-            "pos_x": self.pos[0],
-            "pos_y": self.pos[1],
-            "pos_z": self.pos[2],
-            "angle": self.angle,
-            "tool_center_point_x": self.tcp[0],
-            "tool_center_point_y": self.tcp[1],
-            "tool_center_point_z": self.tcp[2],
         }
 
 
 class MobileRobot(Robot):
     '''Mobile Robots have a robotic arm, and can move around the Shopfloor'''
 
+    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
+        super().__init__(_id, name, namespace, description, _type, initial_position=initial_position,
+                         initial_orientation=initial_orientation, current_station=current_station)
+        self.battery_status = 1.0
+
     def mqtt_update_payload(self):
         self.mqtt_payload = {
-            "name": self.name,
-            "type": self.type,
-            "status": self.status,
-            "pos_x": self.pos[0],
-            "pos_y": self.pos[1],
-            "pos_z": self.pos[2],
-            "angle": self.angle,
-            "tool_center_point_x": self.tcp[0],
-            "tool_center_point_y": self.tcp[1],
-            "tool_center_point_z": self.tcp[2],
         }
 
 
-class Job():
+class Job:
     '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
 
     def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
