@@ -4,8 +4,9 @@ from random import randint
 from mpmath import *
 from math import sqrt
 from .mqtt_utils import MqttGeneric
+import copy
 
-TOPIC_ROOT = "freeaim/echo/"        # Root of the MQTT topic.
+
 MOVEMENT_SLEEP = 0.1                # Amount of time to wait between steps.
 MOVEMENT_STEP = 5                   # Amount to move in an axis (x or y).
 
@@ -41,14 +42,8 @@ class Robot:
             "position": initial_position,
             "orientation": initial_orientation
         }
-        self.pose = self.initial_pose
+        self.pose = copy.deepcopy(self.initial_pose)
         self.current_station = None
-
-        # MQTT
-        self.mqtt_topic = TOPIC_ROOT + \
-            self.header.namespace + "/" + self.header._id
-        self.mqtt_payload = {}
-        self.prev_mqtt_payload = {}
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
@@ -121,19 +116,6 @@ class Robot:
         self.status = "IDLE"
         return
 
-    def mqtt_update_payload(self):
-        '''Update the Robot's MQTT payload with its data. Needs to be implemented for each type of Robot.'''
-        raise NotImplementedError(
-            "Each Robot has a specific MQTT payload. Please implement this in each child class.")
-
-    def mqtt_send_payload(self, mqtt_client):
-        '''Publish the MQTT payload via the MQTT protocol. If the payload is the same as the previous one, it will be ignored.'''
-        if self.mqtt_payload != self.prev_mqtt_payload:
-            mqtt_client.publish(
-                self.mqtt_topic, json.dumps(self.mqtt_payload), 0)
-            self.prev_mqtt_payload = self.mqtt_payload
-        return
-
 
 class AGV(Robot):
     '''AGVs are responsible for moving the Products around the Shopfloor'''
@@ -143,18 +125,13 @@ class AGV(Robot):
                          initial_orientation=initial_orientation, current_station=current_station)
         self.battery_status = 1.0  # Battery percentage = battery_status*100
 
-    def mqtt_update_payload(self):
-        self.mqtt_payload = {
-            "pose": self.pose
-        }
-
 
 class StationaryRobot(Robot):
     '''Stationary Robots have a robotic arm, but can't move around the Shopfloor'''
 
-    def mqtt_update_payload(self):
-        self.mqtt_payload = {
-        }
+    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
+        super().__init__(_id, name, namespace, description, _type, initial_position=initial_position,
+                         initial_orientation=initial_orientation, current_station=current_station)
 
 
 class MobileRobot(Robot):
@@ -165,24 +142,17 @@ class MobileRobot(Robot):
                          initial_orientation=initial_orientation, current_station=current_station)
         self.battery_status = 1.0
 
-    def mqtt_update_payload(self):
-        self.mqtt_payload = {
-        }
-
 
 class Job:
     '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
 
     def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
+        self.header = Header("job", "job", "jobs", "a job")
         self.status = "pending"
         self.pending = pending_steps
         self.completed = []
         self.current_step = "-"
         self.current_progress = 0  # Job progress in percentage
-        # MQTT
-        self.mqtt_topic = TOPIC_ROOT + mqtt_topic
-        self.mqtt_payload = {}
-        self.prev_mqtt_payload = {}
 
     def update_progress(self):
         '''Update current progress on the Job in percentage'''
@@ -211,31 +181,60 @@ class Job:
         self.current_step = "-"
         self.current_progress = 0
 
-    def mqtt_update_payload(self):
-        self.mqtt_payload = {
-            "name": "J1",
-            "status": self.status,
-            "current_progress": self.current_progress,
-            "current_step": self.current_step,
-            "pending": self.pending,
-            "completed": self.completed
-        }
 
-    def mqtt_send_payload(self, mqtt_client):
-        '''Publish the MQTT payload via the MQTT protocol. If the payload is the same as the previous one, it will be ignored.'''
-        if self.mqtt_payload != self.prev_mqtt_payload:
-            mqtt_client.publish(
-                self.mqtt_topic, json.dumps(self.mqtt_payload), 0)
-            self.prev_mqtt_payload = self.mqtt_payload
-        return
+class Station_v2:
+    def __init__(self, _id, name, namespace, description):
+        self.header = Header(_id, name, namespace, description)
+        self.status = "SETUP"  # SETUP, OPERABLE, UNKNOWN, ERROR
 
 
-class ShopfloorManager(MqttGeneric):
-    ''' Receives commands from MQTT and influences the simulation accordingly. '''
+class Job_v2:
+    '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
 
-    def __init__(self):
-        self.last_action = ""
-        self.action = ""
+    def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
+        self.header = Header(_id, name, namespace, description)
+        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.process_steps = process_steps
+        self.progress = 0  # In percentage
 
-    def stop_job(self):
+    def update_progress(self):
+        ''' Update current progress on the Job. '''
         pass
+
+    def begin_step(self, step_name: str):
+        '''Update the current step with the specified step name. If the step is not in the pending list, or it's not a "-" step (for transitions), raise an Exception'''
+        if step_name in self.pending:
+            self.current_step = step_name
+        else:
+            raise Exception(
+                "The specified step is not in the Job's pending steps list.")
+
+    def complete_step(self, step_name: str):
+        '''Remove the completed step from the pending list and append it to the completed list'''
+        self.pending.remove(step_name)
+        self.completed.append(step_name)
+        self.current_step = "-"
+        self.update_progress()
+
+    def reset(self):
+        self.status = "pending"
+        self.pending = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]
+        self.completed = []
+        self.current_step = "-"
+        self.current_progress = 0
+
+
+class ProcessStep:
+    def __init__(self):
+        self.header = Header(_id, name, namespace, description)
+        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.operations = operations
+        self.progress = 0  # In percentage
+        self.station = station
+
+
+class Operation:
+    def __init__(self):
+        self.header = Header(_id, name, namespace, description)
+        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.progress = 0  # In percentage
