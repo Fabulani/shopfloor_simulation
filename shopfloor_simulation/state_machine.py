@@ -23,13 +23,13 @@ class StateMachine:
     Any state machine created should inherit from this class.
     '''
 
-    def __init__(self, initialState):
+    def __init__(self, initial_state):
         ''' Set and run the initial State. '''
-        self.currentState = initialState
-        self.currentState.run()
+        self.current_state = initial_state
+        self.current_state.run()
 
     def runAll(self):
         ''' Run States indefinitly, according to the rules set inside its `next` methods. '''
         while True:
-            self.currentState = self.currentState.next()
-            self.currentState.run()
+            self.current_state = self.current_state.next()
+            self.current_state.run()
