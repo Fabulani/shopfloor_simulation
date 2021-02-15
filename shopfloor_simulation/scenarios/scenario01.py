@@ -4,8 +4,8 @@ from random import randint
 from mpmath import *
 from math import sqrt
 from shopfloor_simulation.state_machine import State, StateMachine
-from shopfloor_simulation.entities import StationaryRobot, MobileRobot, AGV, Station, Job, ShopfloorManager
-from shopfloor_simulation.mqtt_utils import ShopfloorPublisher, ShopfloorSubscriber
+from shopfloor_simulation.entities import StationaryRobot, MobileRobot, AGV, Station, Job
+from shopfloor_simulation.mqtt_utils import ShopfloorPublisher, ShopfloorManager
 
 
 STATE_SLEEP = 2  # Amount of time to wait between states.
@@ -26,9 +26,30 @@ class Shopfloor(StateMachine):
     def runAll(self):
         ''' (OVERRIDDEN) Print the current state before executing it. '''
         while True:
-            self.currentState = self.currentState.next()
-            print("[STATE] " + self.currentState.__class__.__name__)
-            self.currentState.run()
+            action = Shopfloor.subscriber.next_action()
+            if action == "STOP":
+                self.previous_state = self.current_state
+                self.current_state = Shopfloor.stop
+            elif action == "CONTINUE":
+                self.current_state = self.previous_state.next()
+            else:
+                self.current_state = self.current_state.next()
+            print("[STATE] " + self.current_state.__class__.__name__)
+            self.current_state.run()
+
+
+class Stop(State):
+    ''' Stop the simulation by doing nothing and loop on itself. 
+        # Inside the Shopfloor's runAll method, this state can be triggered and changed:
+            # The "STOP" action will trigger this state;
+            # The "CONTINUE" action will trigger a state change.
+    '''
+
+    def run(self):
+        sleep(STATE_SLEEP)
+
+    def next(self):
+        return Shopfloor.stop
 
 
 class Idle(State):
@@ -243,18 +264,19 @@ J1 = Job("Job-001", pending_steps=[Station1.op, Station2.op,
 # Shopfloor Manager
 Sm = ShopfloorManager()
 
-# List of entities that need to be reset
+# List of entities
 Shopfloor.entities = [S1, S2, S3, S4, S5, S6, M1, M2, A1, J1]
 
 # MQTT Publisher and Subscriber
 Shopfloor.publisher = ShopfloorPublisher(
     name="MQTT-P",
     publishing_entities=Shopfloor.entities)
-Shopfloor.subscriber = ShopfloorSubscriber(
+Shopfloor.subscriber = ShopfloorManager(
     name="MQTT-S",
-    subscribed_topics=["freeaim/echo/ShopfloorSubscriber"])
+    subscribed_topics=["freeaim/echo/ShopfloorManager"])
 
 # Stationary variable initialization (State registration):
+Shopfloor.stop = Stop()
 Shopfloor.idle = Idle()
 Shopfloor.op10 = OP10()
 Shopfloor.op20 = OP20()
