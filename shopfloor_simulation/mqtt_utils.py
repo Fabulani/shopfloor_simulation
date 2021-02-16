@@ -1,6 +1,7 @@
 import paho.mqtt.client as mqtt
 from time import sleep, perf_counter
 import json
+import jsonpickle
 import copy
 
 
@@ -96,16 +97,11 @@ class ShopfloorPublisher(MqttGeneric):
     def send_payload(self, entity):
         '''Publish the entity's attributes as a JSON payload. If the payload is the same as the previous one, it will be ignored.'''
 
-        # Get the entity's attributes as a Python dict.
-        payload = vars(entity)
-
-        # Some attributes are objects, and those are not JSON serializable. Find them and get their vars()
-        for key in payload:
-            if not is_jsonable(payload[key]):
-                payload[key] = vars(payload[key])
+        # Encode the entity object to JSON format
+        payload = jsonpickle.encode(entity, unpicklable=False)
 
         # The payload id is used to verify if the new payload is different from its previous instance.
-        payload_id = entity.header["_id"]
+        payload_id = entity.header._id
 
         # Verify if the payload exists in the prev_payload dict. If it does, check if the new and the prev are different.
         if payload_id not in self.prev_payloads:
@@ -120,9 +116,9 @@ class ShopfloorPublisher(MqttGeneric):
 
         # Publish the new payload.
         mqtt_topic = self.root_topic + \
-            entity.header["namespace"] + "/" + entity.header["_id"]
+            entity.header.namespace + "/" + entity.header._id
         self.client.publish(
-            mqtt_topic, json.dumps(payload), 0)
+            mqtt_topic, payload, 0)
 
         # Update previous payload.
         self.prev_payloads[payload_id] = copy.deepcopy(payload)
@@ -177,12 +173,3 @@ class ShopfloorManager(MqttGeneric):
         else:
             # No new actions in the queue.
             return ""
-
-
-def is_jsonable(x):
-    ''' Check if object is JSON serializable. '''
-    try:
-        json.dumps(x)
-        return True
-    except (TypeError, OverflowError):
-        return False
