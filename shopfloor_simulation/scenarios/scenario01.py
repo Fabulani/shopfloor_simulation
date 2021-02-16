@@ -4,7 +4,7 @@ from random import randint
 from mpmath import *
 from math import sqrt
 from shopfloor_simulation.state_machine import State, StateMachine
-from shopfloor_simulation.entities import StationaryRobot, MobileRobot, AGV, Station, Job
+from shopfloor_simulation.entities import StationaryRobot, MobileRobot, AGV, Station, Job, ProcessStep, Operation
 from shopfloor_simulation.mqtt_utils import ShopfloorPublisher, ShopfloorManager
 
 
@@ -56,10 +56,11 @@ class Idle(State):
     '''Idle State where nothing happens'''
 
     def run(self):
+        J1.reset()
         sleep(STATE_SLEEP)
 
     def next(self):
-        return Shopfloor.op10
+        return Shopfloor.transition_to_op10
 
 
 class OP10(State):
@@ -159,6 +160,17 @@ class TransitionToIdle(State):
         return Shopfloor.idle
 
 
+class TransitionToOP10(State):
+    '''Transition State from Idle to OP10'''
+
+    def run(self):
+        J1.status = "IN_PROGRESS"
+        sleep(STATE_SLEEP)
+
+    def next(self):
+        return Shopfloor.op10
+
+
 class TransitionToOP20(State):
     '''Transition State from OP10 to OP20'''
 
@@ -220,18 +232,48 @@ class TransitionToOP60(State):
 
 ''' Entity and State Machine initialization. '''
 # Instantiate Stations
-Station1 = Station("Station-001", "Station1", "stations",
-                   "I'm Station 001!", (650, 160, 0), 'OP10')
-Station2 = Station("Station-002", "Station2", "stations",
-                   "I'm Station 002!", (370, 530, 0), 'OP20')
-Station3 = Station("Station-003", "Station3", "stations",
-                   "I'm Station 003!", (480, 400, 0), 'OP30')
-Station4 = Station("Station-004", "Station4", "stations",
-                   "I'm Station 004!", (250, 300, 0), 'OP40')
-Station5 = Station("Station-005", "Station5", "stations",
-                   "I'm Station 005!", (250, 200, 0), 'OP50')
-Station6 = Station("Station-006", "Station6", "stations",
-                   "I'm Station 006!", (250, 100, 0), 'OP60')
+Station1 = Station("Station-001", "Station1", "stations", "I'm Station 001!")
+Station2 = Station("Station-002", "Station2", "stations", "I'm Station 002!")
+Station3 = Station("Station-003", "Station3", "stations", "I'm Station 003!")
+Station4 = Station("Station-004", "Station4", "stations", "I'm Station 004!")
+Station5 = Station("Station-005", "Station5", "stations", "I'm Station 005!")
+Station6 = Station("Station-006", "Station6", "stations", "I'm Station 006!")
+
+# Instantiate Operations
+Op00 = Operation("OP-000", "Operation 00",
+                 "operations", "Main frame preparation")
+Op10 = Operation("OP-010", "Operation 10",
+                 "operations", "Sub-assemble cross member")
+Op20 = Operation("OP-020", "Operation 20",
+                 "operations", "Assemble cross member")
+Op30 = Operation("OP-030", "Operation 30",
+                 "operations", "Assemble rear member")
+Op40 = Operation("OP-040", "Operation 40",
+                 "operations", "Assemble front member")
+Op50 = Operation("OP-050", "Operation 50",
+                 "operations", "Measurement")
+Op60 = Operation("OP-060", "Operation 60",
+                 "operations", "Disassembly")
+
+# Instantiate Process Steps
+Ps00 = ProcessStep("PS-000", "Process Step 00", "process_steps",
+                   "I'm Process Step 00!", [Op00], Station1.header)
+Ps01 = ProcessStep("PS-001", "Process Step 01", "process_steps",
+                   "I'm Process Step 01!", [Op10], Station1.header)
+Ps02 = ProcessStep("PS-002", "Process Step 02", "process_steps",
+                   "I'm Process Step 02!", [Op20], Station2.header)
+Ps03 = ProcessStep("PS-003", "Process Step 03", "process_steps",
+                   "I'm Process Step 03!", [Op30], Station3.header)
+Ps04 = ProcessStep("PS-004", "Process Step 04", "process_steps",
+                   "I'm Process Step 04!", [Op40], Station4.header)
+Ps05 = ProcessStep("PS-005", "Process Step 05", "process_steps",
+                   "I'm Process Step 05!", [Op50], Station5.header)
+Ps06 = ProcessStep("PS-006", "Process Step 06", "process_steps",
+                   "I'm Process Step 06!", [Op60], Station6.header)
+
+# Instantiate Jobs
+J1 = Job("JOB-001", "Job 001", "jobs", "I'm Job 001!",
+         [Ps00, Ps01, Ps02, Ps03, Ps04, Ps05, Ps06])
 
 # Instantiate Stationary Robots
 S1 = StationaryRobot("Stationary-Robot-001", "S1", "robots", "I'm Stationary Robot 001!", "stationary",
@@ -255,17 +297,17 @@ M2 = MobileRobot("Mobile-Robot-002", "M2", "robots", "I'm Mobile Robot 002!", "m
 
 # Instantiate AGV  #! initial_position=Station1.pos results in A1.pose["position"]=([650, 160, 0],), no idea why
 A1 = AGV("AGV-001", "A1", "robots", "I'm AGV 001!", "agv",
-         initial_position=[650, 160, 0], initial_orientation=[0, 0, 0, 0], current_station=Station1.header)
-
-# Instantiate Jobs
-J1 = Job("Job-001", pending_steps=[Station1.op, Station2.op,
-                                   Station3.op, Station4.op, Station5.op, Station6.op])
-
-# Shopfloor Manager
-Sm = ShopfloorManager()
+         initial_position=(650, 160, 0), initial_orientation=[0, 0, 0, 0], current_station=Station1.header)
 
 # List of entities
-Shopfloor.entities = [S1, S2, S3, S4, S5, S6, M1, M2, A1, J1]
+Shopfloor.entities = [Station1, Station2, Station3, Station4, Station5, Station6,
+                      Op00, Op10, Op20, Op30, Op40, Op50, Op60,
+                      Ps00, Ps01, Ps02, Ps03, Ps04, Ps05, Ps06,
+                      J1,
+                      S1, S2, S3, S4, S5, S6,
+                      M1, M2,
+                      A1,
+                      ]
 
 # MQTT Publisher and Subscriber
 Shopfloor.publisher = ShopfloorPublisher(
@@ -285,6 +327,7 @@ Shopfloor.op40 = OP40()
 Shopfloor.op50 = OP50()
 Shopfloor.op60 = OP60()
 Shopfloor.transition_to_idle = TransitionToIdle()
+Shopfloor.transition_to_op10 = TransitionToOP10()
 Shopfloor.transition_to_op20 = TransitionToOP20()
 Shopfloor.transition_to_op30 = TransitionToOP30()
 Shopfloor.transition_to_op40 = TransitionToOP40()
