@@ -17,18 +17,8 @@ class Header:
     def __init__(self, _id, name, namespace, description):
         self._id = _id
         self.name = name
-        self.namespace = namespace
+        self._namespace = namespace
         self.description = description
-
-
-class Station:
-    '''The Stations are where the Robots work on the Products'''
-
-    def __init__(self, _id, name, namespace, description, position, operation_type):
-        self.header = Header(_id, name, namespace, description)
-        self.status = "SETUP"  # SETUP, OPERABLE, UNKNOWN, ERROR
-        self.pos = position,
-        self.op = operation_type
 
 
 class Robot:
@@ -43,7 +33,7 @@ class Robot:
             "orientation": initial_orientation
         }
         self.pose = copy.deepcopy(self.initial_pose)
-        self.current_station = None
+        self.current_station = current_station
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
@@ -112,6 +102,10 @@ class Robot:
                                      current_pos["y"],
                                      current_pos["z"]]
 
+            # Battery drain
+            if "battery_status" in vars(self):
+                self.battery_status -= 0.1
+
             sleep(MOVEMENT_SLEEP)
         self.status = "IDLE"
         return
@@ -143,7 +137,7 @@ class MobileRobot(Robot):
         self.battery_status = 1.0
 
 
-class Job:
+class Job1:
     '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
 
     def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
@@ -182,59 +176,84 @@ class Job:
         self.current_progress = 0
 
 
-class Station_v2:
+class Station:
+    ''' The Stations are where the Robot execute Operations and Process Steps '''
+
     def __init__(self, _id, name, namespace, description):
         self.header = Header(_id, name, namespace, description)
         self.status = "SETUP"  # SETUP, OPERABLE, UNKNOWN, ERROR
 
 
-class Job_v2:
-    '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
+class Job:
+    ''' For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of process steps (PSs) '''
 
-    def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
+    def __init__(self, _id, name, namespace, description, process_steps: list):
         self.header = Header(_id, name, namespace, description)
         self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
-        self.process_steps = process_steps
+        self.process_steps = process_steps  # Also determines order of execution of PSs
         self.progress = 0  # In percentage
 
     def update_progress(self):
-        ''' Update current progress on the Job. '''
-        pass
+        ''' Update current progress on the Job '''
 
-    def begin_step(self, step_name: str):
-        '''Update the current step with the specified step name. If the step is not in the pending list, or it's not a "-" step (for transitions), raise an Exception'''
-        if step_name in self.pending:
-            self.current_step = step_name
-        else:
-            raise Exception(
-                "The specified step is not in the Job's pending steps list.")
+        completed = 0
+        pending = 0
 
-    def complete_step(self, step_name: str):
-        '''Remove the completed step from the pending list and append it to the completed list'''
-        self.pending.remove(step_name)
-        self.completed.append(step_name)
-        self.current_step = "-"
-        self.update_progress()
+        # Count completed/pending PSs
+        for ps in self.process_steps:
+            if ps.status == "DONE":
+                completed += 1
+            else:
+                pending += 1
+
+        # Calculate progress and round it to an integer number
+        self.progress = round(completed/(completed + pending)*100, 0)
 
     def reset(self):
-        self.status = "pending"
-        self.pending = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]
-        self.completed = []
-        self.current_step = "-"
-        self.current_progress = 0
+        ''' Reset both the Job, its ProcessSteps and Operations. '''
+
+        # Set statuses to IDLE and progress to 0
+        self.status = "IDLE"
+        self.progress = 0
+        for ps in self.process_steps:
+            ps.status = "IDLE"
+            ps.progress = 0
+            for op in ps.operations:
+                op.status = "IDLE"
+                op.progress = 0
 
 
 class ProcessStep:
-    def __init__(self):
+    ''' Part of a Job, consists of Operations and is executed in some Station '''
+
+    def __init__(self, _id, name, namespace, description, operations: list, station: Header):
         self.header = Header(_id, name, namespace, description)
         self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.operations = operations
         self.progress = 0  # In percentage
         self.station = station
 
+    def update_progress(self):
+        ''' Update current progress on the Process Step '''
+
+        completed = 0
+        pending = 0
+
+        # Count completed/pending PSs
+        for op in self.operations:
+            if op.status == "DONE":
+                completed += 1
+            else:
+                pending += 1
+
+        # Calculate progress and round it to an integer number
+        self.progress = round(completed/(completed + pending)*100, 0)
+
 
 class Operation:
-    def __init__(self):
+    '''  Atomic element that consists of a specific Operation to be executed as part of a Process Step '''
+
+    def __init__(self, _id, name, namespace, description):
         self.header = Header(_id, name, namespace, description)
         self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.progress = 0  # In percentage
