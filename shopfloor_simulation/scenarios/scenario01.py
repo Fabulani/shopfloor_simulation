@@ -38,11 +38,12 @@ class Shopfloor(StateMachine):
             self.current_state.run()
 
 
-class Stop(State):
+class OnHold(State):
     ''' Stop the simulation by doing nothing and loop on itself. 
-        # Inside the Shopfloor's runAll method, this state can be triggered and changed:
-            # The "STOP" action will trigger this state;
-            # The "CONTINUE" action will trigger a state change.
+
+        Inside the Shopfloor's runAll method, this state can be triggered and changed:
+        - The "STOP" action will trigger this state;
+        - The "CONTINUE" action will trigger a state change.
     '''
 
     def run(self):
@@ -53,14 +54,44 @@ class Stop(State):
 
 
 class Idle(State):
-    '''Idle State where nothing happens'''
+    ''' Check the Job Queue and its Jobs. 
+
+    If there are Jobs and at least one of them has the `IN_PROGRESS` status,
+    transition to the `BeginJob` State after assigning the Job to 
+    `Shopfloor.current_job`. Otherwise, loop back to this state.
+    '''
 
     def run(self):
-        J1.reset()
+        job_incoming = len(Shopfloor.job_queue) > 0
+        if job_incoming:
+            for job in Shopfloor.job_queue:
+                if job.status == "IN_PROGRESS":
+                    Shopfloor.current_job = job
+                    break
         sleep(STATE_SLEEP)
 
     def next(self):
-        return Shopfloor.transition_to_op10
+        if Shopfloor.current_job != None:
+            return Shopfloor.begin_job
+        else:
+            return Shopfloor.idle
+
+
+class BeginJob(State):
+    ''' Begin work on the current Job by first moving the Robots into position. '''
+
+    def run(self):
+        ''' A note about the BeginJob State and Robot's movement.
+
+        Since this simulation is for a single type of Job, the Robot's initial
+        pose is already the correct position for beginning this Job. Different
+        types of Jobs might require a different position, as such this is the
+        State to reposition them before effectively doing work.
+        '''
+        sleep(STATE_SLEEP)
+
+    def next(self):
+        return Shopfloor.op10
 
 
 class OP10(State):
@@ -158,17 +189,6 @@ class TransitionToIdle(State):
 
     def next(self):
         return Shopfloor.idle
-
-
-class TransitionToOP10(State):
-    '''Transition State from Idle to OP10'''
-
-    def run(self):
-        J1.status = "IN_PROGRESS"
-        sleep(STATE_SLEEP)
-
-    def next(self):
-        return Shopfloor.op10
 
 
 class TransitionToOP20(State):
@@ -309,6 +329,11 @@ Shopfloor.entities = [Station1, Station2, Station3, Station4, Station5, Station6
                       A1,
                       ]
 
+# Job management related variables
+Shopfloor.job_queue = [J1]
+Shopfloor.current_job = None  # Will store ref to Job objects
+
+
 # MQTT Publisher and Subscriber
 Shopfloor.publisher = ShopfloorPublisher(
     name="MQTT-P",
@@ -318,8 +343,9 @@ Shopfloor.subscriber = ShopfloorManager(
     subscribed_topics=["freeaim/echo/ShopfloorManager"])
 
 # Stationary variable initialization (State registration):
-Shopfloor.stop = Stop()
+Shopfloor.on_hold = OnHold()
 Shopfloor.idle = Idle()
+Shopfloor.begin_job = BeginJob()
 Shopfloor.op10 = OP10()
 Shopfloor.op20 = OP20()
 Shopfloor.op30 = OP30()
@@ -327,7 +353,6 @@ Shopfloor.op40 = OP40()
 Shopfloor.op50 = OP50()
 Shopfloor.op60 = OP60()
 Shopfloor.transition_to_idle = TransitionToIdle()
-Shopfloor.transition_to_op10 = TransitionToOP10()
 Shopfloor.transition_to_op20 = TransitionToOP20()
 Shopfloor.transition_to_op30 = TransitionToOP30()
 Shopfloor.transition_to_op40 = TransitionToOP40()
