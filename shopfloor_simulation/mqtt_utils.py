@@ -116,7 +116,7 @@ class ShopfloorPublisher(MqttGeneric):
 
         # Publish the new payload.
         mqtt_topic = self.root_topic + \
-            entity.header.namespace + "/" + entity.header._id
+            entity.header._namespace + "/" + entity.header._id
         self.client.publish(
             mqtt_topic, payload, 0)
 
