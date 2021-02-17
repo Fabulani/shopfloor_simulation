@@ -12,7 +12,7 @@ The idea of this project is to provide a way to generate dummy data for other pr
 
 This goal is achieved by utilizing a State Machine pattern to implement and execute user-defined scenarios that publish/subscribe to MQTT topics. New entities (such as a new type of robot) can be defined inside ```entities.py```, added into one of the scenarios in ```shopfloor_simulation/scenarios```, and then such scenarios can be imported and executed in ```simulation_sm.py```. MQTT settings can be changed in ```mqtt_utils.py```, and custom publish/subscribe functions can be added.
 
-A graphics generator script called ```simulation_graphics.py``` built with Pygame is also provided as a means of visualizing data.
+A graphics generator script called ```simulation_graphics.py``` built with Pygame is also provided as a means of visualizing data (note: graphics for the current build is failing!).
 
 
 # Requirements
