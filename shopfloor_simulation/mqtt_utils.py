@@ -86,6 +86,7 @@ class ShopfloorPublisher(MqttGeneric):
         '''(OVERRIDDEN) Starts the MQTT communication. Updates and sends payloads every loop.'''
         self.client.loop_start()
         sleep(1)
+        self.initialize_topics()
         while run_event.is_set():
             for entity in self.publishing_entities:
                 self.send_payload(entity)
@@ -94,8 +95,37 @@ class ShopfloorPublisher(MqttGeneric):
         self.client.loop_stop()
         print("[" + self.name + "] Shutting down.")
 
+    def initialize_topics(self):
+        ''' Publish all publishing_entities's payloads to their topics. '''
+        for entity in self.publishing_entities:
+            self.initialize_single_topic(entity)
+
+    def initialize_single_topic(self, entity):
+        ''' Publish a single entity's payload to its topic. '''
+        # Encode the entity object to a JSON string
+        payload = jsonpickle.encode(entity, unpicklable=False)
+
+        # Decode the payload to a Python dict
+        payload_dict = jsonpickle.decode(payload)
+
+        # Initialize the head topic with the entire payload
+        mqtt_topic = self.root_topic + \
+            entity.header._namespace + "/" + entity.header._id
+        self.client.publish(mqtt_topic, payload, 0)
+
+        # Initialize the atomic topics (sub-topics) with the payload items
+        for key, value in payload_dict.items():
+            atomic_topic = mqtt_topic + '/' + key
+            if type(value) is not str:  # Avoid escaping characters
+                value = jsonpickle.encode(value)
+            self.client.publish(atomic_topic, value, 0)
+
     def send_payload(self, entity):
-        '''Publish the entity's attributes as a JSON payload. If the payload is the same as the previous one, it will be ignored.'''
+        ''' Publish the entity's attributes as a JSON payload. 
+
+        If the payload is the same as the previous one, it will be ignored.
+        This function also publishes to sub-topics (called atomic topics).        
+        '''
 
         # Encode the entity object to JSON format
         payload = jsonpickle.encode(entity, unpicklable=False)
@@ -117,19 +147,44 @@ class ShopfloorPublisher(MqttGeneric):
         # Publish the new payload.
         mqtt_topic = self.root_topic + \
             entity.header._namespace + "/" + entity.header._id
-        self.client.publish(
-            mqtt_topic, payload, 0)
+        self.client.publish(mqtt_topic, payload, 0)
 
-        # Update previous payload.
+        # Update the atomic topics as well
+        self.send_payload_atomic(
+            self.prev_payloads[payload_id], payload, mqtt_topic)
+
+        # Update prev_payloads.
         self.prev_payloads[payload_id] = copy.deepcopy(payload)
+
+    def send_payload_atomic(self, prev_payload, payload, mqtt_topic):
+        ''' Split the payload into multiple atomic payloads with their own topics. 
+
+            `prev_payload`: the previous instance of the payload.
+
+            `payload`: the jsonpickle encoded entity (Python object).
+
+            `mqtt_topic`: the publishing entity's topic.
+        '''
+        # Decode payloads to dict
+        prev_payload_dict = jsonpickle.decode(prev_payload)
+        payload_dict = jsonpickle.decode(payload)
+
+        # Search for updates to publish
+        for key, new_value in payload_dict.items():
+            if prev_payload_dict[key] != new_value:
+                # Previous value is different from current. Publish the update.
+                atomic_topic = mqtt_topic + '/' + key
+                if type(new_value) is not str:  # Avoid escaping characters
+                    new_value = jsonpickle.encode(new_value)
+                self.client.publish(atomic_topic, new_value, 0)
 
     def on_publish(self, client, userdata, mid):
         '''(OVERRIDDEN) The callback for when a message is published. Do nothing.'''
         pass
 
 
-class ShopfloorSubscriber(MqttGeneric):
-    ''' MQTT Subscriber that influences the simulation according to received messages. '''
+class MqttSubscriber(MqttGeneric):
+    ''' MQTT Generic Subscriber that prints received messages. '''
 
     def on_message(self, client, userdata, msg):
         ''' (OVERRIDDEN) The callback for when a PUBLISH message is received from the server. '''
@@ -137,11 +192,14 @@ class ShopfloorSubscriber(MqttGeneric):
             content = json.loads(msg.payload.decode("utf-8"))
             print("[" + self.name + "] Received: " + str(content))
         except:
-            print("[" + self.name + "] Unrecognized: " + str(msg.payload))
+            print("[" + self.name + "] Non-JSON received: " + str(msg.payload))
 
 
-class ShopfloorManager(MqttGeneric):
-    ''' Receives commands from MQTT and influences the simulation accordingly. '''
+class ActionBasedManager(MqttGeneric):
+    ''' (deprecated) Action-based solution for receiving commands from MQTT and influencing the simulation. 
+
+        Replaced by the JobManager, which fits scenario01 better.
+    '''
 
     def __init__(self, host=MQTT_HOST, port=MQTT_PORT, username=MQTT_USERNAME, password=MQTT_PASSWORD, run_event_check_sleep=0.1, subscribed_topics=[], name='MQTT', root_topic=ROOT_TOPIC):
         super().__init__(host=host, port=port, username=username, password=password,
@@ -173,3 +231,48 @@ class ShopfloorManager(MqttGeneric):
         else:
             # No new actions in the queue.
             return ""
+
+
+class JobManager(MqttGeneric):
+    ''' Subscribes to the Job's topic and monitors changes to their status.
+
+        These status changes will influence the simulation flow. They represent
+        the press of a button or a drag-and-drop to another field in the
+        frontend's Job Board.
+    '''
+
+    def __init__(self, host=MQTT_HOST, port=MQTT_PORT, username=MQTT_USERNAME, password=MQTT_PASSWORD, run_event_check_sleep=0.1, subscribed_topics=[], name='MQTT', root_topic=ROOT_TOPIC):
+        super().__init__(host=host, port=port, username=username, password=password,
+                         run_event_check_sleep=run_event_check_sleep, subscribed_topics=subscribed_topics, name=name, root_topic=root_topic)
+        self.job_update_queue = []
+
+    def on_message(self, client, userdata, msg):
+        try:
+            # A Job Status was published. Check it out.
+            new_status = msg.payload.decode("utf-8")
+
+            # The topic should be something like this: ROOT_TOPIC/jobs/<job_id>/status
+            # Get the Job ID
+            topic_parts = msg.topic.split('/')
+            job_id = topic_parts[-2]
+            self.job_update_queue.append((job_id, new_status))
+        except:
+            print("[" + self.name + "] Unrecognized: " + str(msg.payload))
+
+    def update_jobs(self, job_queue: list):
+        ''' Search the Job Queue and update the Jobs with their new statuses.
+
+            Check if there are Job updates. For every one of them, search the
+            `job_queue` for a matching id and apply the new status.
+        '''
+        if len(self.job_update_queue) > 0:
+            # Loop through the new Job updates
+            for (job_id, new_status) in self.job_update_queue:
+                # Loop through the existing Jobs inside the job_queue
+                for job in job_queue:
+                    # Search for a matching id. If found, apply the new status
+                    if job.header._id == job_id:
+                        job.status = new_status
+                        break
+            # Empty the update queue
+            self.job_update_queue = []
