@@ -59,6 +59,7 @@ The ```simulation_graphics.py``` script will open a window and continually draw 
 
 # Other Info
 
+* A State Machine diagram for Scenario01 can be found here: https://whimsical.com/shopfloor-simulation-state-machine-diagram-QUKKNykbMkyLasnx6ysvqB@2Ux7TurymLB2WJEDGpE5
 * For monitoring the topics, the app MQTT-Explorer was used, available here: http://mqtt-explorer.com
 * The root topic ```freeaim/echo``` is being used to publish data.
 

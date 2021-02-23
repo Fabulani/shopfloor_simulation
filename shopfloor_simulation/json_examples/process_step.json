@@ -1,7 +1,7 @@
 {
-    "header.json": {},
+    "Header header": {},
     "status": "CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN",
-    "operations": [],
+    "Operation operations": [],
     "progress": 2.5,
-    "Station station": {}
+    "Header station": {}
 }

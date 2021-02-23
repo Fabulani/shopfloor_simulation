@@ -1,5 +1,5 @@
 {
-    "header.json": {},
+    "Header header": {},
     "status": "CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN",
     "progress": 2.5
 }

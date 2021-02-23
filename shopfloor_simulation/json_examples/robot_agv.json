@@ -1,6 +1,4 @@
 {
-    "header.json": {},
     "robot.json": {},
-    "battery_status": 1.12,
-    "Header current_station": {}
+    "battery_status": 1.12
 }
