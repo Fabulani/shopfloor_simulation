@@ -1,14 +1,9 @@
 from time import sleep
-import json
-from random import randint
-from mpmath import *
-from math import sqrt
-from .mqtt_utils import MqttGeneric
 import copy
 
 
 MOVEMENT_SLEEP = 0.1                # Amount of time to wait between steps.
-MOVEMENT_STEP = 5                   # Amount to move in an axis (x or y).
+MOVEMENT_STEP = 10                   # Amount to move in an axis (x or y).
 
 
 class Header:
@@ -67,35 +62,16 @@ class Robot:
                 target_reached = True
                 break
 
-            # Calculate steps for x axis
-            dx = target_pos["x"] - current_pos["x"]
-            if (dx > 0 and abs(dx) > MOVEMENT_STEP):
-                current_pos["x"] += MOVEMENT_STEP
-            elif (dx < 0 and abs(dx) > MOVEMENT_STEP):
-                current_pos["x"] -= MOVEMENT_STEP
-            else:
-                # Target is very close. Snap to it.
-                current_pos["x"] = target_pos["x"]
-
-            # Calculate a step for y axis
-            dy = target_pos["y"] - current_pos["y"]
-            if (dy > 0 and abs(dy) > MOVEMENT_STEP):
-                current_pos["y"] += MOVEMENT_STEP
-            elif (dy < 0 and abs(dy) > MOVEMENT_STEP):
-                current_pos["y"] -= MOVEMENT_STEP
-            else:
-                # Target is very close. Snap to it.
-                current_pos["y"] = target_pos["y"]
-
-            # Calculate a step for z axis
-            dz = target_pos["z"] - current_pos["z"]
-            if (dz > 0 and abs(dz) > MOVEMENT_STEP):
-                current_pos["z"] += MOVEMENT_STEP
-            elif (dz < 0 and abs(dz) > MOVEMENT_STEP):
-                current_pos["z"] -= MOVEMENT_STEP
-            else:
-                # Target is very close. Snap to it.
-                current_pos["z"] = target_pos["z"]
+            # Calculate steps for each axis
+            for xyz in target_pos.keys():
+                distance = target_pos[xyz] - current_pos[xyz]
+                if (distance > 0 and abs(distance) > MOVEMENT_STEP):
+                    current_pos[xyz] += MOVEMENT_STEP
+                elif (distance < 0 and abs(distance) > MOVEMENT_STEP):
+                    current_pos[xyz] -= MOVEMENT_STEP
+                else:
+                    # Target is very close. Snap to it.
+                    current_pos[xyz] = target_pos[xyz]
 
             # Update the Robot's positions
             self.pose["position"] = [current_pos["x"],
@@ -104,14 +80,14 @@ class Robot:
 
             # Battery drain
             if "battery_status" in vars(self):
-                self.battery_status -= 0.1
+                self.battery_status -= 0.0001
 
             sleep(MOVEMENT_SLEEP)
         self.status = "IDLE"
         return
 
 
-class AGV(Robot):
+class Agv(Robot):
     '''AGVs are responsible for moving the Products around the Shopfloor'''
 
     def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
@@ -127,6 +103,10 @@ class StationaryRobot(Robot):
         super().__init__(_id, name, namespace, description, _type, initial_position=initial_position,
                          initial_orientation=initial_orientation, current_station=current_station)
 
+    def move(self, target):
+        ''' (OVERRIDDEN) Stationary Robots can't move! Do nothing. '''
+        pass
+
 
 class MobileRobot(Robot):
     '''Mobile Robots have a robotic arm, and can move around the Shopfloor'''
@@ -137,51 +117,12 @@ class MobileRobot(Robot):
         self.battery_status = 1.0
 
 
-class Job1:
-    '''For the Shopfloor simulation, only one Job is repeatedly executed, consisting of a list of processes (OPs)'''
-
-    def __init__(self, mqtt_topic, pending_steps: list = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]):
-        self.header = Header("job", "job", "jobs", "a job")
-        self.status = "pending"
-        self.pending = pending_steps
-        self.completed = []
-        self.current_step = "-"
-        self.current_progress = 0  # Job progress in percentage
-
-    def update_progress(self):
-        '''Update current progress on the Job in percentage'''
-        self.current_progress = round(
-            len(self.completed)/(len(self.completed) + len(self.pending))*100, 2)
-
-    def begin_step(self, step_name: str):
-        '''Update the current step with the specified step name. If the step is not in the pending list, or it's not a "-" step (for transitions), raise an Exception'''
-        if step_name in self.pending:
-            self.current_step = step_name
-        else:
-            raise Exception(
-                "The specified step is not in the Job's pending steps list.")
-
-    def complete_step(self, step_name: str):
-        '''Remove the completed step from the pending list and append it to the completed list'''
-        self.pending.remove(step_name)
-        self.completed.append(step_name)
-        self.current_step = "-"
-        self.update_progress()
-
-    def reset(self):
-        self.status = "pending"
-        self.pending = ["OP10", "OP20", "OP30", "OP40", "OP50", "OP60"]
-        self.completed = []
-        self.current_step = "-"
-        self.current_progress = 0
-
-
 class Station:
     ''' The Stations are where the Robot execute Operations and Process Steps '''
 
     def __init__(self, _id, name, namespace, description):
         self.header = Header(_id, name, namespace, description)
-        self.status = "SETUP"  # SETUP, OPERABLE, UNKNOWN, ERROR
+        self.status = "OPERABLE"  # SETUP, OPERABLE, UNKNOWN, ERROR
 
 
 class Job:
@@ -221,6 +162,19 @@ class Job:
             for op in ps.operations:
                 op.status = "IDLE"
                 op.progress = 0
+
+    def begin_process_step(self, _id):
+        ''' Change status of the Ps and its Op to IN_PROGRESS. '''
+        self.process_steps[_id].status = "IN_PROGRESS"
+        self.process_steps[_id].operations[0].status = "IN_PROGRESS"
+
+    def finish_process_step(self, _id):
+        ''' Change status of the Ps and its Op to DONE, then update progress. '''
+        self.process_steps[_id].status = "DONE"
+        self.process_steps[_id].operations[0].status = "DONE"
+        self.process_steps[_id].operations[0].progress = 100
+        self.process_steps[_id].update_progress()
+        self.update_progress()
 
 
 class ProcessStep:
