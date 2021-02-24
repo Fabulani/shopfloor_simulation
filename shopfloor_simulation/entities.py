@@ -22,7 +22,7 @@ class Robot:
     def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station: Header = None):
         self.header = Header(_id, name, namespace, description)
         self.type = _type  # agv, stationary, or mobile
-        self.status = "IDLE"  # TODO: write other possible status here
+        self.status = "IDLE"  # INIT, IDLE, BUSY, TRANSPORT, PAUSED, UNKNOWN, ERROR
         self.initial_pose = {
             "position": initial_position,
             "orientation": initial_orientation
@@ -43,7 +43,7 @@ class Robot:
         `target`: xyz coordinates for the Robot's destination.
         '''
         prev_status = self.status
-        self.status = "MOVE"
+        self.status = "TRANSPORT"
 
         current_pos = {"x": self.pose["position"][0],
                        "y": self.pose["position"][1],
