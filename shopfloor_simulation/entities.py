@@ -42,6 +42,7 @@ class Robot:
 
         `target`: xyz coordinates for the Robot's destination.
         '''
+        prev_status = self.status
         self.status = "MOVE"
 
         current_pos = {"x": self.pose["position"][0],
@@ -83,7 +84,7 @@ class Robot:
                 self.battery_status -= 0.0001
 
             sleep(MOVEMENT_SLEEP)
-        self.status = "IDLE"
+        self.status = prev_status
         return
 
 
