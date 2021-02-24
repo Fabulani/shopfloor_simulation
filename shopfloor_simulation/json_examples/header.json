@@ -1,6 +1,6 @@
 {
-    "id": "ABC-001",
+    "_id": "ABC-001",
     "name": "Some name",
-    "namespace": "Some namespace",
+    "_namespace": "Some namespace",
     "description": "Some description"
 }
