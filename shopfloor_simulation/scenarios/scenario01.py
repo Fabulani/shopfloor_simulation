@@ -191,9 +191,10 @@ class OP10(State):
     def run(self):
         Shopfloor.current_job.begin_process_step(1)
 
-        S1.status = 'busy'
-        S2.status = 'busy'
-        A1.status = 'busy'
+        S1.status = 'BUSY'
+        S2.status = 'BUSY'
+        A1.status = 'BUSY'
+        A1.current_station = Station1.header
 
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(1)
@@ -206,10 +207,11 @@ class OP10(State):
 
 class OP20(State):
     def run(self):
+        A1.current_station = Station2.header
         Shopfloor.current_job.begin_process_step(2)
-        S4.status = 'busy'
-        M1.status = 'busy'
-        M2.status = 'busy'
+        S4.status = 'BUSY'
+        M1.status = 'BUSY'
+        M2.status = 'BUSY'
 
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(2)
@@ -221,8 +223,11 @@ class OP20(State):
 
 class OP30(State):
     def run(self):
+        A1.current_station = Station3.header
+        M1.current_station = Station3.header
+        M2.current_station = Station3.header
         Shopfloor.current_job.begin_process_step(3)
-        S3.status = 'busy'
+        S3.status = 'BUSY'
 
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(3)
@@ -234,9 +239,12 @@ class OP30(State):
 
 class OP40(State):
     def run(self):
+        A1.current_station = Station4.header
+        M1.current_station = Station4.header
+        M2.current_station = Station4.header
         Shopfloor.current_job.begin_process_step(4)
-        S5.status = 'busy'
-        S6.status = 'busy'
+        S5.status = 'BUSY'
+        S6.status = 'BUSY'
 
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(4)
@@ -251,6 +259,7 @@ class OP40(State):
 
 class OP50(State):
     def run(self):
+        A1.current_station = Station5.header
         Shopfloor.current_job.begin_process_step(5)
 
         sleep(STATE_SLEEP)
@@ -262,6 +271,7 @@ class OP50(State):
 
 class OP60(State):
     def run(self):
+        A1.current_station = Station6.header
         Shopfloor.current_job.begin_process_step(6)
 
         sleep(STATE_SLEEP)
@@ -297,6 +307,9 @@ class Reset(State):
     def run(self):
         for entity in Shopfloor.resettable_entities:
             entity.reset()
+        A1.current_station = Station1.header
+        M1.current_station = Station2.header
+        M2.current_station = Station2.header
         create_job()
         sleep(5)
 
@@ -420,7 +433,7 @@ S6 = StationaryRobot("Stationary-Robot-006", "S6", "robots", "I'm Stationary Rob
 
 # Instantiate Mobile Robots
 M1 = MobileRobot("Mobile-Robot-001", "M1", "robots", "I'm Mobile Robot 001!", "mobile",
-                 initial_position=[450, 590, 0], initial_orientation=[0, 0, 0, 0], current_station=Station3.header)
+                 initial_position=[450, 590, 0], initial_orientation=[0, 0, 0, 0], current_station=Station2.header)
 M2 = MobileRobot("Mobile-Robot-002", "M2", "robots", "I'm Mobile Robot 002!", "mobile",
                  initial_position=[450, 485, 0], initial_orientation=[0, 0, 0, 0], current_station=Station2.header)
 
