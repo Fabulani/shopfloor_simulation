@@ -5,7 +5,7 @@ from shopfloor_simulation.entities import StationaryRobot, MobileRobot, Agv, Sta
 from shopfloor_simulation.mqtt_utils import JobManager, ShopfloorPublisher
 
 
-STATE_SLEEP = 0.5  # Amount of time to wait between states.
+STATE_SLEEP = 1  # Amount of time to wait between states.
 
 
 ''' Helper function definitions '''
@@ -25,13 +25,23 @@ def create_job():
     #! Deepcopy solves the issues of Jobs overwriting info on other Job objects,
     #! but it doesn't solve the issue of overwriting the PS's and OP's
     #! MQTT topics. Still, inside the Job topic, the PS and OP info should be OK.
+    #! This issue might be ignored since the Jobs are now being used to store
+    #! PS and its OP data inside Thingworx: Jobs > InfoTable(PS) > InfoTable(OP)
     '''
     job_id = Shopfloor.job_count + 1
+
+    # Format the Job ID so it's always a 3-digit string.
+    if job_id < 10:
+        job_id_str = "00" + str(job_id)
+    elif job_id < 100:
+        job_id_str = "0" + str(job_id)
+    else:
+        job_id_str = str(job_id)
     new_job = Job(
-        _id="JOB-" + str(job_id),
-        name="J" + str(job_id),
+        _id="Job-" + job_id_str,
+        name="Job " + job_id_str,
         namespace="jobs",
-        description="I'm Job " + str(job_id) + "!",
+        description="I'm Job " + job_id_str + "!",
         process_steps=[
             copy.deepcopy(Ps00),
             copy.deepcopy(Ps01),
@@ -403,42 +413,42 @@ Op60 = Operation("OP-060", "Op60",
 
 # Instantiate Process Steps
 Ps00 = ProcessStep("PS-000", "Ps00", "process_steps", "I'm Process Step 00!",
-                   [copy.deepcopy(Op00)], Station1.header)
+                   [copy.deepcopy(Op00)], Station1.header, nextPs="PS-001")
 Ps01 = ProcessStep("PS-001", "Ps01", "process_steps", "I'm Process Step 01!",
-                   [copy.deepcopy(Op10)], Station1.header)
+                   [copy.deepcopy(Op10)], Station1.header, prevPs="PS-000", nextPs="PS-002")
 Ps02 = ProcessStep("PS-002", "Ps02", "process_steps", "I'm Process Step 02!",
-                   [copy.deepcopy(Op20)], Station2.header)
+                   [copy.deepcopy(Op20)], Station2.header, prevPs="PS-001", nextPs="PS-003")
 Ps03 = ProcessStep("PS-003", "Ps03", "process_steps", "I'm Process Step 03!",
-                   [copy.deepcopy(Op30)], Station3.header)
+                   [copy.deepcopy(Op30)], Station3.header, prevPs="PS-002", nextPs="PS-004")
 Ps04 = ProcessStep("PS-004", "Ps04", "process_steps", "I'm Process Step 04!",
-                   [copy.deepcopy(Op40)], Station4.header)
+                   [copy.deepcopy(Op40)], Station4.header, prevPs="PS-003", nextPs="PS-005")
 Ps05 = ProcessStep("PS-005", "Ps05", "process_steps", "I'm Process Step 05!",
-                   [copy.deepcopy(Op50)], Station5.header)
+                   [copy.deepcopy(Op50)], Station5.header, prevPs="PS-004", nextPs="PS-006")
 Ps06 = ProcessStep("PS-006", "Ps06", "process_steps", "I'm Process Step 06!",
-                   [copy.deepcopy(Op60)], Station6.header)
+                   [copy.deepcopy(Op60)], Station6.header, prevPs="PS-005")
 
 # Instantiate Stationary Robots
-S1 = StationaryRobot("Stationary-Robot-001", "S1", "robots", "I'm Stationary Robot 001!", "stationary",
+S1 = StationaryRobot("StationaryRobot-001", "S1", "robots", "I'm Stationary Robot 001!", "stationary",
                      initial_position=[615, 100, 0], initial_orientation=[0, 0, 0, 0], current_station=Station1.header)
-S2 = StationaryRobot("Stationary-Robot-002", "S2", "robots", "I'm Stationary Robot 002!", "stationary",
+S2 = StationaryRobot("StationaryRobot-002", "S2", "robots", "I'm Stationary Robot 002!", "stationary",
                      initial_position=[690, 100, 0], initial_orientation=[0, 0, 0, 0], current_station=Station1.header)
-S3 = StationaryRobot("Stationary-Robot-003", "S3", "robots", "I'm Stationary Robot 003!", "stationary",
+S3 = StationaryRobot("StationaryRobot-003", "S3", "robots", "I'm Stationary Robot 003!", "stationary",
                      initial_position=[685, 415, 0], initial_orientation=[0, 0, 0, 0], current_station=Station3.header)
-S4 = StationaryRobot("Stationary-Robot-004", "S4", "robots", "I'm Stationary Robot 004!", "stationary",
+S4 = StationaryRobot("StationaryRobot-004", "S4", "robots", "I'm Stationary Robot 004!", "stationary",
                      initial_position=[490, 600, 0], initial_orientation=[0, 0, 0, 0], current_station=Station2.header)
-S5 = StationaryRobot("Stationary-Robot-005", "S5", "robots", "I'm Stationary Robot 005!", "stationary",
+S5 = StationaryRobot("StationaryRobot-005", "S5", "robots", "I'm Stationary Robot 005!", "stationary",
                      initial_position=[490, 320, 0], initial_orientation=[0, 0, 0, 0], current_station=Station4.header)
-S6 = StationaryRobot("Stationary-Robot-006", "S6", "robots", "I'm Stationary Robot 006!", "stationary",
+S6 = StationaryRobot("StationaryRobot-006", "S6", "robots", "I'm Stationary Robot 006!", "stationary",
                      initial_position=[490, 270, 0], initial_orientation=[0, 0, 0, 0], current_station=Station4.header)
 
 # Instantiate Mobile Robots
-M1 = MobileRobot("Mobile-Robot-001", "M1", "robots", "I'm Mobile Robot 001!", "mobile",
+M1 = MobileRobot("MobileRobot-001", "M1", "robots", "I'm Mobile Robot 001!", "mobile",
                  initial_position=[450, 590, 0], initial_orientation=[0, 0, 0, 0], current_station=Station2.header)
-M2 = MobileRobot("Mobile-Robot-002", "M2", "robots", "I'm Mobile Robot 002!", "mobile",
+M2 = MobileRobot("MobileRobot-002", "M2", "robots", "I'm Mobile Robot 002!", "mobile",
                  initial_position=[450, 485, 0], initial_orientation=[0, 0, 0, 0], current_station=Station2.header)
 
 # Instantiate AGV
-A1 = Agv("AGV-001", "A1", "robots", "I'm AGV 001!", "agv",
+A1 = Agv("Agv-001", "A1", "robots", "I'm AGV 001!", "agv",
          initial_position=(650, 160, 0), initial_orientation=[0, 0, 0, 0], current_station=Station1.header)
 
 # List of entities that have the reset() method
@@ -468,7 +478,9 @@ Shopfloor.subscriber = JobManager(
     name="MQTT-S",
     subscribed_topics=["freeaim/echo/jobs/+/status"])
 
-# Create the first Job
+# Create 3 Jobs
+create_job()
+create_job()
 create_job()
 
 # Stationary variable initialization (State registration):

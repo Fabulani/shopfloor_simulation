@@ -1,5 +1,6 @@
 from time import sleep
 import copy
+import random
 
 
 MOVEMENT_SLEEP = 0.1                # Amount of time to wait between steps.
@@ -29,6 +30,8 @@ class Robot:
         }
         self.pose = copy.deepcopy(self.initial_pose)
         self.current_station = current_station
+        self.robotMode = "AUTOMATIC"
+        self.motionPossible = True
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
@@ -131,9 +134,10 @@ class Job:
 
     def __init__(self, _id, name, namespace, description, process_steps: list):
         self.header = Header(_id, name, namespace, description)
-        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.status = "IDLE"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.process_steps = process_steps  # Also determines order of execution of PSs
         self.progress = 0  # In percentage
+        self.is_real = random.choice([True, False])  # Real or simulated Job
 
     def update_progress(self):
         ''' Update current progress on the Job '''
@@ -181,12 +185,14 @@ class Job:
 class ProcessStep:
     ''' Part of a Job, consists of Operations and is executed in some Station '''
 
-    def __init__(self, _id, name, namespace, description, operations: list, station: Header):
+    def __init__(self, _id, name, namespace, description, operations: list, station: Header, nextPs="", prevPs=""):
         self.header = Header(_id, name, namespace, description)
-        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.status = "IDLE"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.operations = operations
         self.progress = 0  # In percentage
         self.station = station
+        self.nextProcessStep = nextPs  # The id of the PS to be executed next
+        self.prevProcessStep = prevPs  # The id of the PS that must be executed beforehand
 
     def update_progress(self):
         ''' Update current progress on the Process Step '''
@@ -210,5 +216,5 @@ class Operation:
 
     def __init__(self, _id, name, namespace, description):
         self.header = Header(_id, name, namespace, description)
-        self.status = "CREATED"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
+        self.status = "IDLE"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.progress = 0  # In percentage
