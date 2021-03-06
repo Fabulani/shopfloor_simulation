@@ -3,6 +3,7 @@ from time import sleep, perf_counter
 import json
 import jsonpickle
 import copy
+from random import randint
 
 
 ''' MQTT Connection setup. '''
@@ -11,6 +12,7 @@ MQTT_HOST = "mqtt.flespi.io"
 MQTT_PORT = 1883
 MQTT_USERNAME = ""
 MQTT_PASSWORD = ""
+MQTT_CLIENT_ID = "Shopfloor-Simulation-"
 ROOT_TOPIC = "freeaim/echo/"
 
 
@@ -19,7 +21,8 @@ class MqttGeneric:
 
     def __init__(self, host=MQTT_HOST, port=MQTT_PORT, username=MQTT_USERNAME, password=MQTT_PASSWORD,
                  run_event_check_sleep: float = 0.1, subscribed_topics: list = [], name="MQTT", root_topic=ROOT_TOPIC):
-        self.client = mqtt.Client()
+        self.client_id = MQTT_CLIENT_ID + name + "-" + str(randint(0, 1000))
+        self.client = mqtt.Client(self.client_id)
         self.client.username_pw_set(username, password)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message

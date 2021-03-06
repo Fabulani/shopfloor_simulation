@@ -1,13 +1,5 @@
 # Shopfloor simulation
 
-- [Shopfloor simulation](#shopfloor-simulation)
-- [Requirements](#requirements)
-- [Execution](#execution)
-	- [Python only](#python-only)
-	- [(Optional) Docker](#optional-docker)
-- [Other Info](#other-info)
-	- [Used icons](#used-icons)
-
 The idea of this project is to provide a way to generate dummy data for other projects and services that depend on it, as well as make it easier to transition from dummy simulated data to real data from the Shopfloor.
 
 This goal is achieved by utilizing a State Machine pattern to implement and execute user-defined scenarios that publish/subscribe to MQTT topics. New entities (such as a new type of robot) can be defined inside ```entities.py```, added into one of the scenarios in ```shopfloor_simulation/scenarios```, and then such scenarios can be imported and executed in ```simulation_sm.py```. MQTT settings can be changed in ```mqtt_utils.py```, and custom publish/subscribe functions can be added.
