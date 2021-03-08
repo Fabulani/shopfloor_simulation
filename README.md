@@ -15,20 +15,16 @@ A graphics generator script called ```simulation_graphics.py``` built with Pygam
 # Execution
 
 ## Python only
-1. Open the Windows cmd prompt in this folder.
-2. Type:
+1. Install Python requirements with:
 
    ```python -m pip install -r requirements.txt```
-3. After installing the required modules, you can start the simulation with:
+2. After installing the required modules, you can start the simulation with:
 
    ```python sm_simulation.py```
-4. (optional) Open another terminal and execute ```python draw_simulation.py``` to open a window that'll get data from MQTT and draw the simulation. This has been configured to draw the AGV and Mobile Robots movement, as well as the Job status updates.
 
-The ```simulation_sm.py``` script will continually publish data to the topics inside "freeaim/echo". To stop the script, use a keyboard interrupt (CTRL + C).
+The ```simulation_sm.py``` script will continually publish data to the topics inside ```freeaim/echo```. To stop the script, use a keyboard interrupt (CTRL + C).
 
-The ```simulation_graphics.py``` script will open a window and continually draw the simulation using data from MQTT. To stop the script, you can either use a keyboard interrupt or close the window.
-
-* Note: you can change MQTT settings inside ```shopfloor_simulation/mqtt_utils.py```.
+**Note**: you can change MQTT settings inside ```shopfloor_simulation/mqtt_utils.py```.
 
 
 ## (Optional) Docker
@@ -46,7 +42,6 @@ The ```simulation_graphics.py``` script will open a window and continually draw 
 
 \* ```docker build``` might take a few minutes.
 \* The ```-d``` flag means ```detached```. If you want the container to use your terminal, just remove this flag (the script prints the current state to the terminal).
-\* The container doesn't run the graphics script.
 
 
 # Other Info
