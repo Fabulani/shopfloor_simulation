@@ -3,8 +3,8 @@ import copy
 import random
 
 
-MOVEMENT_SLEEP = 0.1                # Amount of time to wait between steps.
-MOVEMENT_STEP = 10                   # Amount to move in an axis (x or y).
+MOVEMENT_SLEEP = 0.3                # Amount of time to wait between steps.
+MOVEMENT_STEP = 50                   # Amount to move in an axis (x or y).
 
 
 class Header:
@@ -32,11 +32,15 @@ class Robot:
         self.current_station = current_station
         self.robotMode = "AUTOMATIC"
         self.motionPossible = True
+        self.currentJob = ""
+        self.currentOp = ""
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
         self.move_robot(self.initial_pose["position"])
         self.status = 'IDLE'
+        self.currentJob = ""
+        self.currentOp = ""
         return
 
     def move_robot(self, target):
