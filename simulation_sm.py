@@ -5,7 +5,8 @@ from time import sleep
 
 
 # Always import the desired scenario 'as Scenario' to keep the code compatible.
-from shopfloor_simulation.scenarios.scenario01 import Shopfloor as Scenario
+# from shopfloor_simulation.scenarios.scenario01 import Shopfloor as Scenario
+from shopfloor_simulation.scenarios.scenarioTwinViewer1 import Shopfloor as Scenario
 
 
 if __name__ == "__main__":
@@ -34,9 +35,9 @@ if __name__ == "__main__":
         # Start simulation
         Scenario().runAll()
     except KeyboardInterrupt:
-        print("[THREADS] Attempting to close threads.")
+        print("\n[THREADS] Attempting to close threads.")
     except:
-        print("[ERROR] Unexpected error:")
+        print("\n[ERROR] Unexpected error:")
         logging.exception('')
 
     # Clear the run_event to shutdown threads.
