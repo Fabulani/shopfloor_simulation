@@ -5,8 +5,8 @@ from shopfloor_simulation.entities import StationaryRobot, MobileRobot, Agv, Sta
 from shopfloor_simulation.mqtt_utils import JobManager, ShopfloorPublisher
 
 
-STATE_SLEEP = 0.1  # Amount of time to wait between states.
-
+STATE_SLEEP = 1  # Amount of time to wait between states.
+SCENARIO_NAME = __file__.split("\\")[-1].replace(".py", "")
 
 ''' Helper function definitions '''
 # These functions are specific to this scenario.
@@ -90,6 +90,8 @@ def check_job_status_then_change_state(current_state, next_state):
 
 class Shopfloor(StateMachine):
     def __init__(self):
+        print("[SCENARIO] Initializing Scenario " + SCENARIO_NAME)
+
         # Initial state
         print("[STATE] Idle")
         StateMachine.__init__(self, Shopfloor.idle)
@@ -107,20 +109,17 @@ class Shopfloor(StateMachine):
             # Transition to the next state
             self.current_state = self.current_state.next()
 
-            # If the info is the same as before, print it on the same line.
-            state_info = "[STATE] " + self.current_state.__class__.__name__
-            if state_info != prev_state_info:
-                repeats = 0
-                print(state_info)
-            else:
-                repeats += 1
-                print(state_info + " x" + str(repeats), end='\r')
+            # Print state log and update values
+            prev_state_info, state_info, repeats = self.log_state_flow(
+                prev_state_info, state_info, repeats)
 
             # Update prev_state_info
             prev_state_info = state_info
 
             # Run the current state
             self.current_state.run()
+
+        print("[SCENARIO] Scenario " + SCENARIO_NAME + " has been shut down.")
 
 
 class OnHold(State):
@@ -180,8 +179,6 @@ class BeginJob(State):
         types of Jobs might require a different position, as such this is the
         State to reposition them before effectively doing work.
         '''
-        for entity in Shopfloor.resettable_entities:
-            entity.currentJob = Shopfloor.current_job.header._id
         sleep(STATE_SLEEP)
 
     def next(self):
@@ -206,11 +203,6 @@ class OP10(State):
         S1.status = 'BUSY'
         S2.status = 'BUSY'
         A1.status = 'BUSY'
-
-        S1.currentOp = "OP-010"
-        S2.currentOp = "OP-010"
-        A1.currentOp = "OP-010"
-
         A1.current_station = Station1.header
 
         sleep(STATE_SLEEP)
@@ -230,10 +222,6 @@ class OP20(State):
         M1.status = 'BUSY'
         M2.status = 'BUSY'
 
-        S4.currentOp = "OP-020"
-        M1.currentOp = "OP-020"
-        M2.currentOp = "OP-020"
-
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(2)
         S4.reset()
@@ -249,11 +237,6 @@ class OP30(State):
         M2.current_station = Station3.header
         Shopfloor.current_job.begin_process_step(3)
         S3.status = 'BUSY'
-
-        A1.currentOp = "OP-030"
-        M1.currentOp = "OP-030"
-        M2.currentOp = "OP-030"
-        S3.currentOp = "OP-030"
 
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(3)
@@ -272,12 +255,6 @@ class OP40(State):
         S5.status = 'BUSY'
         S6.status = 'BUSY'
 
-        A1.currentOp = "OP-040"
-        M1.currentOp = "OP-040"
-        M2.currentOp = "OP-040"
-        S5.currentOp = "OP-040"
-        S6.currentOp = "OP-040"
-
         sleep(STATE_SLEEP)
         Shopfloor.current_job.finish_process_step(4)
         S5.reset()
@@ -292,7 +269,6 @@ class OP40(State):
 class OP50(State):
     def run(self):
         A1.current_station = Station5.header
-        A1.currentOp = "OP-050"
         Shopfloor.current_job.begin_process_step(5)
 
         sleep(STATE_SLEEP)
@@ -305,7 +281,6 @@ class OP50(State):
 class OP60(State):
     def run(self):
         A1.current_station = Station6.header
-        A1.currentOp = "OP-060"
         Shopfloor.current_job.begin_process_step(6)
 
         sleep(STATE_SLEEP)
