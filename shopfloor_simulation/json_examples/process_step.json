@@ -1,7 +1,0 @@
-{
-    "Header header": {},
-    "status": "CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN",
-    "Operation operations": [],
-    "progress": 2.5,
-    "Header station": {}
-}

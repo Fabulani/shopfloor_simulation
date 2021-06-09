@@ -1,6 +1,0 @@
-{
-    "Header header": {},
-    "status": "CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN",
-    "ProcessStep process_steps": [],
-    "progress": 2.5
-}
