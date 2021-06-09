@@ -1,2 +1,4 @@
 **/venv
 **/__pycache__
+shopfloor_simulation/twin_scripts/
+*.env
