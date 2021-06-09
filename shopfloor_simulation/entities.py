@@ -1,10 +1,12 @@
 from time import sleep
 import copy
 import random
+from shopfloor_simulation.settings import ROOT_TOPIC
+import threading as th
+from queue import Queue
 
-
-MOVEMENT_SLEEP = 0.3                # Amount of time to wait between steps.
-MOVEMENT_STEP = 50                   # Amount to move in an axis (x or y).
+MOVEMENT_SLEEP = 0.01                # Amount of time to wait between steps.
+MOVEMENT_STEP = 2                   # Amount to move in an axis (x or y).
 
 
 class Header:
@@ -20,7 +22,7 @@ class Header:
 class Robot:
     '''The Robots work on the products and can be either stationary, mobile or agvs'''
 
-    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station: Header = None):
+    def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_euler=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station: Header = None):
         self.header = Header(_id, name, namespace, description)
         self.type = _type  # agv, stationary, or mobile
         self.status = "IDLE"  # INIT, IDLE, BUSY, TRANSPORT, PAUSED, UNKNOWN, ERROR
@@ -28,22 +30,36 @@ class Robot:
             "position": initial_position,
             "orientation": initial_orientation
         }
+        self.initial_pose_negative = {
+            "position": [initial_position[0], initial_position[1]*-1, initial_position[2]],
+            "orientation": initial_orientation
+        }
         self.pose = copy.deepcopy(self.initial_pose)
+        self.pose_negative = copy.deepcopy(self.initial_pose_negative)
+        self.position_negative_y = [initial_position[0],
+                                    initial_position[1]*-1, initial_position[2]]
+        self.pose2 = "PE," + \
+            ','.join(map(str, self.position_negative_y)) + \
+            ','+','.join(map(str, initial_euler))
+        self.euler = initial_euler
         self.current_station = current_station
         self.robotMode = "AUTOMATIC"
         self.motionPossible = True
-        self.currentJob = ""
-        self.currentOp = ""
+        self.move_thread = None
 
     def reset(self):
         '''Reset the Robot's attributes. Used when the Robot has to go back to it's initial State.'''
         self.move_robot(self.initial_pose["position"])
         self.status = 'IDLE'
-        self.currentJob = ""
-        self.currentOp = ""
         return
 
     def move_robot(self, target):
+        self.move_thread = th.Thread(
+            target=self.move_robot_thread, args=[target])
+        self.move_thread.start()
+        # self.move_robot_thread(target)
+
+    def move_robot_thread(self, target):
         '''
         Change position incrementally in a linear movement interpolated by the current position and the target position.
 
@@ -57,7 +73,7 @@ class Robot:
                        "z": self.pose["position"][2]}
         target_pos = {"x": target[0], "y": target[1], "z": target[2]}
 
-        # Distances (dx and dy are the sides of the triangle in a 2D plane)
+        # Distances (dx and dy are the sides of the triangle in a 2D plane)K
         dx = target_pos["x"] - current_pos["x"]
         dy = target_pos["y"] - current_pos["y"]
         dz = target_pos["z"] - current_pos["z"]
@@ -85,7 +101,8 @@ class Robot:
             self.pose["position"] = [current_pos["x"],
                                      current_pos["y"],
                                      current_pos["z"]]
-
+            self.pose2 = "PE,"+str(current_pos["x"])+","+str(-1*current_pos["y"])+","+str(
+                current_pos["z"])+','+','.join(map(str, self.euler))
             # Battery drain
             if "battery_status" in vars(self):
                 self.battery_status -= 0.0001
@@ -94,10 +111,38 @@ class Robot:
         self.status = prev_status
         return
 
+    def move_object_absolute(self, target):
+        ''' Change position incrementally in a linear movement interpolated by the current position and the target position as an absolute value.
+        y is negative in live_topic,
+        `target`: xyz coordinates for the Objects's destination.'''
+        pass
 
-class Agv(Robot):
+    def set_position(self, target, euler=[0, 0, 0]):
+        self.pose["position"] = [target[0],
+                                 target[1],
+                                 target[2]]
+        self.pose2 = "PE,"+str(target[0])+","+str(target[1]) + \
+            ","+str(target[2])+','+','.join(map(str, euler))
+
+
+class TwinAgv(Robot):
     '''AGVs are responsible for moving the Products around the Shopfloor'''
 
+    def __init__(self, _id, name, namespace, description, _type, Zone, jtpath="", facility_type="", initial_position=[0, 0, 0], initial_euler=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
+        super().__init__(_id, name, namespace, description, _type, initial_position=initial_position, initial_euler=initial_euler,
+                         initial_orientation=initial_orientation, current_station=current_station)
+        self.battery_status = 1.0  # Battery percentage = battery_status*100
+        self.facility_type = facility_type
+        self.jtpath = jtpath
+        self.position = initial_position
+        self.euler = initial_euler
+        self.facility = facility(name, self.position, self.euler,
+                                 Zone, jtpath=self.jtpath, facility_type=self.facility_type)
+        self.mover = mover(name+"_mover", name, ROOT_TOPIC +
+                           namespace+"/"+str(_id)+"/pose2", Zone)
+
+
+class Agv(Robot):
     def __init__(self, _id, name, namespace, description, _type, initial_position=[0, 0, 0], initial_orientation=[0, 0, 0, 0], current_station=None):
         super().__init__(_id, name, namespace, description, _type, initial_position=initial_position,
                          initial_orientation=initial_orientation, current_station=current_station)
@@ -124,12 +169,86 @@ class MobileRobot(Robot):
                          initial_orientation=initial_orientation, current_station=current_station)
         self.battery_status = 1.0
 
+#NEW RCH#########################################
 
-class Station:
-    ''' The Stations are where the Robot execute Operations and Process Steps '''
 
+class Structure:
     def __init__(self, _id, name, namespace, description):
         self.header = Header(_id, name, namespace, description)
+        self.zones = {}
+
+    def add_zone(self, zone):
+        self.zones.update({zone.header.name: {
+                          "state_topic": ROOT_TOPIC+zone.header._namespace+"/"+zone.header.name+"/state"}})
+
+
+class Zone:
+    def __init__(self, _id, name, namespace, description, Structure):
+        self.header = Header(_id, name, namespace, description)
+        self.facilities = []
+        self.areas = []
+        self.boxes = []
+        self.texts = []
+        self.movers = []
+        self.state = {"facilities": self.facilities, "areas": self.areas,
+                      "boxes": self.boxes, "texts": self.texts, "movers": self.movers}
+        Structure.add_zone(self)
+
+    def update_state(self):
+        self.state = {"facilities": self.facilities, "areas": self.areas,
+                      "boxes": self.boxes, "texts": self.texts, "movers": self.movers}
+
+    def add_facility(self, facility):
+        self.facilities.append(facility)
+
+    def add_area(self, area):
+        self.areas.append(area)
+
+    def add_mover(self, mover):
+        self.movers.append(mover)
+
+
+class facility():
+    def __init__(self, name, position, euler, Zone, jtpath="", facility_type="",):
+        self.name = name
+        if jtpath != "":
+            self.jtpath = jtpath
+        elif facility_type == "":
+            print(
+                "[ERROR] Either jtpath or facility_type have to be inserted for facility " + str(self.name) + ".")
+        else:
+            self.facility_type = facility_type
+        self.position = position
+        self.euler = euler
+        Zone.add_facility(self)
+
+
+class area():
+    def __init__(self, position, area_type, width, depth, Zone):
+        self.position = position
+        self.area_type = area_type
+        self.width = width
+        self.depth = depth
+        Zone.add_area(self)
+
+
+class mover():
+    def __init__(self, name, target, live_topic, Zone, offset_position=[0, 0, 0], offset_euler=[0, 0, 0]):
+        self.name = name
+        self.target = target
+        self.live = True
+        self.live_topic = live_topic
+        self.offset_position = offset_position
+        self.offset_euler = offset_euler
+        Zone.add_mover(self)
+
+###############################################
+
+
+class Station(Zone):
+    def __init__(self, _id, name, namespace, description):
+        self.header = Header(_id, name, namespace, description)
+        self.state = {"facilities": 0}
         self.status = "OPERABLE"  # SETUP, OPERABLE, UNKNOWN, ERROR
 
 
@@ -222,3 +341,21 @@ class Operation:
         self.header = Header(_id, name, namespace, description)
         self.status = "IDLE"  # CREATED, IDLE, IN_PROGRESS, ON_HOLD, DONE, ERROR, UNKNOWN
         self.progress = 0  # In percentage
+
+
+class DigitalTwinViewerManager():
+    """ 
+        Scenario Manager for the Digital Twin Viewer related scenarios.
+
+        Enables the execution of selected `scenarios` by their `flexibility`.
+    """
+
+    def __init__(self, scenarios):
+        self.scenarios = scenarios  # List, tuple or dict of scenarios
+        self.selected_flexibility = 0  # Determines which scenario should be loaded
+        self.efficiency = 0  # From 0 to 1
+        self.is_enabled = True  # Flag that enables the manager
+
+    def load_scenario(self):
+        """ Scenario will be loaded according to the selected flexibility. """
+        self.scenarios[self.selected_flexibility](self).runAll()
