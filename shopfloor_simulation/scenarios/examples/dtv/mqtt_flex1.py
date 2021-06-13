@@ -6,7 +6,7 @@
 import threading
 from time import sleep
 
-from shopfloor_simulation.entities import Agv
+from shopfloor_simulation.entities import Agv, Station
 from shopfloor_simulation.mqtt_utils import DTVMqttClient
 from shopfloor_simulation.settings import ROOT_TOPIC
 from shopfloor_simulation.state_machine import State, StateMachine
@@ -22,6 +22,9 @@ class Scenario(StateMachine):
 
         # The reference to the Scenario Manager
         Scenario.manager = scenario_manager
+
+        # Add the Scenario Manager to the publishing entities list
+        Scenario.publishing_entities.append(scenario_manager)
 
         # Start the State Machine
         StateMachine.__init__(self, Scenario.initialize)
@@ -53,7 +56,7 @@ class Initialize(State):
         # Initialize MQTT client object
         Scenario.mqtt = DTVMqttClient(
             name="MQTT-" + SCENARIO_NAME,
-            subscribed_topics=[ROOT_TOPIC + "scenario_manager/flexibility"],
+            subscribed_topics=[ROOT_TOPIC + "scenario_manager/DTV-000/+"],
             publishing_entities=Scenario.publishing_entities,
             scenario_manager=Scenario.manager,
             scenario=Scenario
@@ -62,7 +65,8 @@ class Initialize(State):
         # Thread for parallel continuous publishing
         Scenario.mqtt_thread = threading.Thread(
             target=Scenario.mqtt.publish_thread,
-            args=[Scenario.run_event]
+            args=[Scenario.run_event],
+            daemon=True
         )
 
         # Enable the run_event
@@ -79,7 +83,7 @@ class Initialize(State):
 
 class State01(State):
     def run(self):
-        A1.move_robot([0, 100, 0])
+        A1.move_robot([0, 0, 10])
         A1.move_thread.join()
         sleep(STATE_SLEEP)
 
@@ -102,6 +106,9 @@ class State02(State):
 
 class Shutdown(State):
     def run(self):
+        # Move robot to initial position
+        A1.move_robot([0, 0, 0])
+        A1.move_thread.join()
         # Disable the scenario.
         Scenario.is_active = False
 
@@ -117,9 +124,13 @@ class Shutdown(State):
         return Scenario.initialize
 
 
+# Instantiate Station
+Station1 = Station("Station11", "Station11", "stations", "I'm Station 001!")
+
 # Instantiate AGV
 A1 = Agv("Agv-001", "A1", "robots", "I'm AGV 001!", "agv",
-         initial_position=(0, 0, 0), initial_orientation=[0, 0, 0, 0])
+         initial_position=(0, 0, 0), initial_orientation=[0, 0, 0, 0],
+         current_station=Station1)
 
 Scenario.publishing_entities = [A1]
 
