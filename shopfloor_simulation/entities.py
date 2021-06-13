@@ -350,12 +350,21 @@ class DigitalTwinViewerManager():
         Enables the execution of selected `scenarios` by their `flexibility`.
     """
 
-    def __init__(self, scenarios):
+    def __init__(self, scenarios, allowed_flexibility: list[int] = [0, 1]):
+        self.header = Header("DTV-000", "DTV Scenario Manager",
+                             "scenario_manager", "Scenario Manager for DTV related scenarios.")
         self.scenarios = scenarios  # List, tuple or dict of scenarios
         self.selected_flexibility = 0  # Determines which scenario should be loaded
+        self.allowed_flexibility = allowed_flexibility
         self.efficiency = 0  # From 0 to 1
         self.is_enabled = True  # Flag that enables the manager
 
     def load_scenario(self):
         """ Scenario will be loaded according to the selected flexibility. """
+
+        # Selected flexibility must be one of these values, otherwise reset to 0
+        if self.selected_flexibility not in self.allowed_flexibility:
+            self.selected_flexibility = 0
+
+        # Run the scenario
         self.scenarios[self.selected_flexibility](self).runAll()
