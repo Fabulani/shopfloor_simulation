@@ -332,7 +332,7 @@ class DTVMqttClient(MqttGeneric):
                 client.publish(tooltip_topic, json.dumps(content), 0)
 
             # New Job status received
-            if property_name == "status":
+            elif property_name == "status":
                 # A Job Status was published. Check it out.
                 new_status = msg.payload.decode("utf-8")
 
@@ -343,8 +343,31 @@ class DTVMqttClient(MqttGeneric):
                 self.scenario.job_update_queue.append((job_id, new_status))
 
             # New flexibility value for the Scenario Manager received
-            if property_name == "flexibility":
-                self.scenario_manager.selected_flexibility = int(msg.payload)
+            elif property_name == "selected_flexibility":
+                self.scenario_manager.selected_flexibility = int(
+                    float(msg.payload))
+
+            # Scenario Manager's is_enabled property
+            elif property_name == "is_enabled":
+                new_is_enabled = msg.payload.decode("utf-8")
+                if new_is_enabled == "false":
+                    self.scenario_manager.is_enabled = False
+                else:
+                    self.scenario_manager.is_enabled = True
+
+            elif property_name == "action_message":
+                action_message = msg.payload.decode("utf-8")
+                if action_message == "BREAKDOWN":
+                    # Signal breakdown
+                    print("Breakdown request received.")
+                    pass
+                elif action_message == "CREATE_JOB":
+                    # Signal creation of new Job.
+                    print("Create Job request received.")
+                    #! For now, create a new Job here with no PS
+                    self.scenario.create_job(
+                        self.scenario, "Porsche-Thingworx", [])
+
         except:
             print("[!] " + self.name + " raised an Exception when processing a value from " +
                   msg.topic + ". Is it of the correct type? Payload: " + str(msg.payload))

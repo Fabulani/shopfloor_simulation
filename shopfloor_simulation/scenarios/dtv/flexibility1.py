@@ -30,6 +30,9 @@ class Shopfloor(SimulatedScenario):
         # The reference to the Scenario Manager
         Shopfloor.manager = scenario_manager
 
+        # Add the Scenario Manager to the publishing entities list
+        Shopfloor.publishing_entities.append(scenario_manager)
+
         # Start the State Machine
         SimulatedScenario.__init__(self, Shopfloor.initialize)
 
@@ -71,7 +74,7 @@ class Initialize(State):
         Shopfloor.mqtt = DTVMqttClient(
             name="MQTT-" + SCENARIO_NAME,
             subscribed_topics=[
-                ROOT_TOPIC + "scenario_manager/flexibility",
+                ROOT_TOPIC + "scenario_manager/DTV-000/+",
                 ROOT_TOPIC + "jobs/+/status",
                 "/VR/viewer_info/tooltip_request"
             ],
@@ -84,7 +87,8 @@ class Initialize(State):
         # Thread for parallel continuous publishing
         Shopfloor.mqtt_thread = th.Thread(
             target=Shopfloor.mqtt.publish_thread,
-            args=[Shopfloor.run_event]
+            args=[Shopfloor.run_event],
+            daemon=True
         )
 
         # Enable the run_event
@@ -663,7 +667,6 @@ Shopfloor.publishing_entities = [S1, S2, S3, S4, S5, S6,
                                  P1, P2, P3, P4, P5, P6,
                                  Robot1, Structure, Halle, Station11, Station12, Station13, Station14, Station15, Station16, Products
                                  ]
-
 
 
 # Initialize State flow variables
